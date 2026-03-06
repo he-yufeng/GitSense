@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/universeplayer/GitSense/actions/workflows/ci.yml/badge.svg)](https://github.com/universeplayer/GitSense/actions)
+[![CI](https://github.com/he-yufeng/GitSense/actions/workflows/ci.yml/badge.svg)](https://github.com/he-yufeng/GitSense/actions)
 
 **[English](README.md) | [中文](README_CN.md)**
 
@@ -183,6 +183,6 @@ GitHub 搜索免费（无 token 有限流）。LLM 排序看你用什么模型�
 
 **如果 GitSense 帮你找到了好 issue，给个 star！**
 
-[报告问题](https://github.com/universeplayer/GitSense/issues) · [功能建议](https://github.com/universeplayer/GitSense/issues)
+[报告问题](https://github.com/he-yufeng/GitSense/issues) · [功能建议](https://github.com/he-yufeng/GitSense/issues)
 
 </div>

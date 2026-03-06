@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Yufeng He", email = "40085740+universeplayer@users.noreply.github.com" },
+    { name = "Yufeng He", email = "40085740+he-yufeng@users.noreply.github.com" },
 ]
 keywords = ["github", "open-source", "contribution", "ai", "agent", "issues", "llm"]
 classifiers = [
@@ -36,8 +36,8 @@ dev = ["pytest>=7.0", "ruff>=0.4"]
 gitsense = "gitsense.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/universeplayer/GitSense"
-Repository = "https://github.com/universeplayer/GitSense"
+Homepage = "https://github.com/he-yufeng/GitSense"
+Repository = "https://github.com/he-yufeng/GitSense"
 
 [tool.hatch.build.targets.wheel]
 packages = ["gitsense"]

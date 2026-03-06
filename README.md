@@ -8,7 +8,7 @@ Tell it your skills → it searches GitHub for open issues you can fix → ranks
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/universeplayer/GitSense/actions/workflows/ci.yml/badge.svg)](https://github.com/universeplayer/GitSense/actions)
+[![CI](https://github.com/he-yufeng/GitSense/actions/workflows/ci.yml/badge.svg)](https://github.com/he-yufeng/GitSense/actions)
 
 **[English](README.md) | [中文](README_CN.md)**
 
@@ -187,6 +187,6 @@ Contributions welcome. If GitSense helped you find your first open source contri
 
 **If GitSense helped you find a good issue to work on, give it a star!**
 
-[Report a Bug](https://github.com/universeplayer/GitSense/issues) · [Request a Feature](https://github.com/universeplayer/GitSense/issues)
+[Report a Bug](https://github.com/he-yufeng/GitSense/issues) · [Request a Feature](https://github.com/he-yufeng/GitSense/issues)
 
 </div>
