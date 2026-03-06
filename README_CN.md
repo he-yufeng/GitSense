@@ -53,8 +53,8 @@ $ gitsense find --skills python,llm,cuda --stars 1000
 正在用 gpt-4o-mini 排序...
 
 ╭──────────── GitSense 结果 ────────────╮
-│ 技术栈: python, llm, cuda             │
-│ 结果: 8 个 issue，按匹配度排序        │
+│ 技术栈: python, llm, cuda             
+│ 结果: 8 个 issue，按匹配度排序        
 ╰───────────────────────────────────────╯
 
   1. [9/10] vllm-project/vllm
