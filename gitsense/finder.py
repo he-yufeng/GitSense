@@ -14,7 +14,7 @@ from gitsense.github_client import search_issues
 def build_search_queries(skills: list[str], min_stars: int, labels: list[str]) -> list[str]:
     """Build GitHub search queries from user skills and filters."""
     queries = []
-    label_filter = " ".join(f'label:"{l}"' for l in labels) if labels else ""
+    label_filter = " ".join(f'label:"{lab}"' for lab in labels) if labels else ""
 
     for skill in skills:
         q = f"{skill} is:issue is:open no:assignee"
@@ -65,7 +65,7 @@ def fetch_candidates(
                 "title": issue.get("title", ""),
                 "url": url,
                 "repo": repo_name,
-                "labels": [l["name"] for l in issue.get("labels", [])],
+                "labels": [lab["name"] for lab in issue.get("labels", [])],
                 "comments": issue.get("comments", 0),
                 "created_at": issue.get("created_at", "")[:10],
                 "body": (issue.get("body") or "")[:1000],
@@ -132,7 +132,7 @@ Respond with ONLY the JSON array."""
 
     content = resp.choices[0].message.content.strip()
     if content.startswith("```"):
-        lines = [l for l in content.split("\n") if not l.strip().startswith("```")]
+        lines = [line for line in content.split("\n") if not line.strip().startswith("```")]
         content = "\n".join(lines)
 
     try:

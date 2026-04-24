@@ -40,7 +40,7 @@ def find(skills: str, stars: int, labels: str, model: str, api_key: str | None,
     from gitsense.finder import fetch_candidates, rank_with_llm
 
     skill_list = [s.strip() for s in skills.split(",") if s.strip()]
-    label_list = [l.strip() for l in labels.split(",") if l.strip()] if labels else []
+    label_list = [lab.strip() for lab in labels.split(",") if lab.strip()] if labels else []
 
     with console.status("[bold blue]Searching GitHub for matching issues..."):
         candidates = fetch_candidates(skill_list, min_stars=stars, labels=label_list)
@@ -124,7 +124,7 @@ def scan(repo: str, skills: str):
     t.add_column("Age", style="dim", width=10)
 
     for issue in issues:
-        labels = ", ".join(l["name"] for l in issue.get("labels", [])[:3])
+        labels = ", ".join(lab["name"] for lab in issue.get("labels", [])[:3])
         t.add_row(
             str(issue["number"]),
             issue["title"][:58],
