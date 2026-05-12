@@ -27,8 +27,17 @@ def main():
 @click.option("--api-key", "-k", envvar="OPENAI_API_KEY", help="LLM API key")
 @click.option("--no-llm", is_flag=True, help="Skip LLM ranking, just show raw results")
 @click.option("--limit", "-n", default=8, help="Number of results to show")
+@click.option(
+    "--updated-days",
+    default=180,
+    show_default=True,
+    help="Only show issues updated within this many days",
+)
+@click.option("--max-comments", type=int, help="Skip noisy issues with more than this many comments")
+@click.option("--include-assigned", is_flag=True, help="Include issues that already have assignees")
 def find(skills: str, stars: int, labels: str, model: str, api_key: str | None,
-         no_llm: bool, limit: int):
+         no_llm: bool, limit: int, updated_days: int, max_comments: int | None,
+         include_assigned: bool):
     """Find open issues that match your skills.
 
     \b
@@ -36,14 +45,26 @@ def find(skills: str, stars: int, labels: str, model: str, api_key: str | None,
         gitsense find --skills python,llm,cuda
         gitsense find --skills rust,wasm --stars 500
         gitsense find --skills python --labels bug --no-llm
+        gitsense find --skills python,llm --updated-days 30 --max-comments 10
     """
     from gitsense.finder import fetch_candidates, rank_with_llm
 
     skill_list = [s.strip() for s in skills.split(",") if s.strip()]
     label_list = [lab.strip() for lab in labels.split(",") if lab.strip()] if labels else []
+    if updated_days <= 0:
+        raise click.UsageError("--updated-days must be greater than zero")
+    if max_comments is not None and max_comments < 0:
+        raise click.UsageError("--max-comments cannot be negative")
 
     with console.status("[bold blue]Searching GitHub for matching issues..."):
-        candidates = fetch_candidates(skill_list, min_stars=stars, labels=label_list)
+        candidates = fetch_candidates(
+            skill_list,
+            min_stars=stars,
+            labels=label_list,
+            updated_days=updated_days,
+            max_comments=max_comments,
+            include_assigned=include_assigned,
+        )
 
     if not candidates:
         console.print("[dim]No matching issues found. Try broader skills or lower --stars.[/dim]")
@@ -96,7 +117,14 @@ def _print_results(results: list[dict], skills: list[str]) -> None:
 @main.command()
 @click.argument("repo")
 @click.option("--skills", "-s", default="", help="Your skills for matching")
-def scan(repo: str, skills: str):
+@click.option(
+    "--updated-days",
+    default=180,
+    show_default=True,
+    help="Only show issues updated within this many days",
+)
+@click.option("--max-comments", type=int, help="Skip noisy issues with more than this many comments")
+def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
     """Scan a specific repo for contribution opportunities.
 
     \b
@@ -108,10 +136,19 @@ def scan(repo: str, skills: str):
     skill_list = [s.strip() for s in skills.split(",") if s.strip()] if skills else []
 
     with console.status(f"[bold blue]Scanning {repo}..."):
-        q = f"repo:{repo} is:issue is:open no:assignee"
+        if updated_days <= 0:
+            raise click.UsageError("--updated-days must be greater than zero")
+        if max_comments is not None and max_comments < 0:
+            raise click.UsageError("--max-comments cannot be negative")
+        from datetime import date, timedelta
+
+        since = date.today() - timedelta(days=updated_days)
+        q = f"repo:{repo} is:issue is:open no:assignee updated:>={since.isoformat()}"
         if skill_list:
             q += f" {' OR '.join(skill_list[:3])}"
         issues = search_issues(q, per_page=15)
+        if max_comments is not None:
+            issues = [issue for issue in issues if issue.get("comments", 0) <= max_comments]
 
     if not issues:
         console.print(f"[dim]No open unassigned issues found in {repo}.[/dim]")
@@ -121,7 +158,8 @@ def scan(repo: str, skills: str):
     t.add_column("#", style="dim", width=6)
     t.add_column("Title", max_width=60)
     t.add_column("Labels", style="cyan", max_width=25)
-    t.add_column("Age", style="dim", width=10)
+    t.add_column("Updated", style="dim", width=10)
+    t.add_column("Comments", justify="right", width=8)
 
     for issue in issues:
         labels = ", ".join(lab["name"] for lab in issue.get("labels", [])[:3])
@@ -129,6 +167,7 @@ def scan(repo: str, skills: str):
             str(issue["number"]),
             issue["title"][:58],
             labels[:23],
-            issue["created_at"][:10],
+            issue.get("updated_at", "")[:10],
+            str(issue.get("comments", 0)),
         )
     console.print(t)

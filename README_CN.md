@@ -38,6 +38,9 @@ gitsense find --skills rust,wasm --stars 500
 # 只看 bug 标签
 gitsense find --skills python --labels bug
 
+# 优先看近期活跃、讨论噪声低的问题
+gitsense find --skills python,llm --updated-days 30 --max-comments 10
+
 # 扫描某个特定仓库
 gitsense scan vllm-project/vllm --skills python,cuda
 ```
@@ -78,7 +81,7 @@ $ gitsense find --skills python,llm,cuda --stars 1000
 
 1. **搜索** — 根据你的技术栈构造 GitHub 搜索语句（如 `python is:issue is:open no:assignee stars:>=100`），在全站搜索，不限于你 follow 的仓库。
 
-2. **过滤** — 去重，提取元数据（star 数、标签、时间、评论数），整理候选列表。
+2. **过滤** — 去重，默认跳过归档、已认领和长期未更新的问题，也可以过滤评论过多的高噪声讨论串。
 
 3. **排序** — 把候选列表和你的技能一起发给 LLM。LLM 给每个 issue 打 1-10 的匹配分，并解释为什么匹配、怎么上手。
 
@@ -106,6 +109,12 @@ gitsense find --skills python --model anthropic/claude-sonnet-4
 
 # 显示更多结果
 gitsense find --skills python --limit 15
+
+# 聚焦近期活跃的问题，避开长期争论串
+gitsense find --skills python,llm --updated-days 30 --max-comments 10
+
+# 主动扫描 backlog 时，也可以包含已认领 issue
+gitsense find --skills python --include-assigned
 ```
 
 ### 扫描特定仓库
@@ -116,6 +125,9 @@ gitsense scan pytorch/pytorch
 
 # 按技术栈过滤
 gitsense scan HKUDS/LightRAG --skills python,rag
+
+# 只看最近活跃的问题
+gitsense scan vllm-project/vllm --skills python,cuda --updated-days 14
 ```
 
 ## 配置

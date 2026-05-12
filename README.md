@@ -38,6 +38,9 @@ gitsense find --skills rust,wasm --stars 500
 # Filter by label
 gitsense find --skills python --labels bug
 
+# Prefer recently active, low-noise issues
+gitsense find --skills python,llm --updated-days 30 --max-comments 10
+
 # Scan a specific repo
 gitsense scan vllm-project/vllm --skills python,cuda
 ```
@@ -80,7 +83,7 @@ Ranking with gpt-4o-mini...
 
 1. **Search** — Builds targeted GitHub search queries from your skills (e.g. `python is:issue is:open no:assignee stars:>=100`). Searches across all of GitHub, not just repos you follow.
 
-2. **Filter** — Deduplicates results, extracts metadata (repo stars, labels, age, comment count), and prepares a condensed candidate list.
+2. **Filter** — Deduplicates results, skips archived / already-assigned / stale issues by default, and can drop noisy threads with too many comments.
 
 3. **Rank** — Sends the candidates to an LLM along with your skill profile. The LLM scores each issue 1-10 on match quality and provides:
    - Why it's a good match (or not)
@@ -110,6 +113,12 @@ gitsense find --skills python --model anthropic/claude-sonnet-4
 
 # Show more results
 gitsense find --skills python --limit 15
+
+# Focus on fresh issues and avoid long unresolved debates
+gitsense find --skills python,llm --updated-days 30 --max-comments 10
+
+# Include assigned issues when you are intentionally scanning a repo backlog
+gitsense find --skills python --include-assigned
 ```
 
 ### Scan a specific repo
@@ -120,6 +129,9 @@ gitsense scan pytorch/pytorch
 
 # Filter by your skills
 gitsense scan HKUDS/LightRAG --skills python,rag
+
+# Scan only recently active issues
+gitsense scan vllm-project/vllm --skills python,cuda --updated-days 14
 ```
 
 ## Configuration

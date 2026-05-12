@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import date, timedelta
 from typing import Any
 
 from openai import OpenAI
@@ -11,25 +12,35 @@ from openai import OpenAI
 from gitsense.github_client import search_issues
 
 
-def build_search_queries(skills: list[str], min_stars: int, labels: list[str]) -> list[str]:
+def build_search_queries(
+    skills: list[str],
+    min_stars: int,
+    labels: list[str],
+    updated_days: int | None = 180,
+    include_assigned: bool = False,
+) -> list[str]:
     """Build GitHub search queries from user skills and filters."""
     queries = []
-    label_filter = " ".join(f'label:"{lab}"' for lab in labels) if labels else ""
+    filters = ["is:issue", "is:open", "archived:false"]
+    if not include_assigned:
+        filters.append("no:assignee")
+    if min_stars > 0:
+        filters.append(f"stars:>={min_stars}")
+    if updated_days is not None:
+        if updated_days <= 0:
+            raise ValueError("updated_days must be greater than zero")
+        since = date.today() - timedelta(days=updated_days)
+        filters.append(f"updated:>={since.isoformat()}")
+    if labels:
+        filters.extend(f'label:"{lab}"' for lab in labels)
+    filter_str = " ".join(filters)
 
     for skill in skills:
-        q = f"{skill} is:issue is:open no:assignee"
-        if min_stars > 0:
-            q += f" stars:>={min_stars}"
-        if label_filter:
-            q += f" {label_filter}"
-        queries.append(q)
+        queries.append(f"{skill} {filter_str}")
 
     # Also search for "good first issue" across skills
     skill_str = " OR ".join(skills[:3])
-    q = f'{skill_str} is:issue is:open label:"good first issue"'
-    if min_stars > 0:
-        q += f" stars:>={min_stars}"
-    queries.append(q)
+    queries.append(f'{skill_str} {filter_str} label:"good first issue"')
 
     return queries
 
@@ -39,9 +50,18 @@ def fetch_candidates(
     min_stars: int = 100,
     labels: list[str] | None = None,
     max_results: int = 30,
+    updated_days: int | None = 180,
+    max_comments: int | None = None,
+    include_assigned: bool = False,
 ) -> list[dict[str, Any]]:
     """Fetch candidate issues from GitHub."""
-    queries = build_search_queries(skills, min_stars, labels or [])
+    queries = build_search_queries(
+        skills,
+        min_stars,
+        labels or [],
+        updated_days=updated_days,
+        include_assigned=include_assigned,
+    )
 
     seen_urls = set()
     candidates = []
@@ -57,6 +77,9 @@ def fetch_candidates(
             if url in seen_urls:
                 continue
             seen_urls.add(url)
+            comments = issue.get("comments", 0)
+            if max_comments is not None and comments > max_comments:
+                continue
 
             repo_url = issue.get("repository_url", "")
             repo_name = "/".join(repo_url.split("/")[-2:]) if repo_url else ""
@@ -66,8 +89,9 @@ def fetch_candidates(
                 "url": url,
                 "repo": repo_name,
                 "labels": [lab["name"] for lab in issue.get("labels", [])],
-                "comments": issue.get("comments", 0),
+                "comments": comments,
                 "created_at": issue.get("created_at", "")[:10],
+                "updated_at": issue.get("updated_at", "")[:10],
                 "body": (issue.get("body") or "")[:1000],
             })
 
@@ -104,7 +128,8 @@ def rank_with_llm(
     for i, c in enumerate(candidates[:20]):
         issue_summaries.append(
             f"[{i}] {c['repo']}: {c['title']} (labels: {', '.join(c['labels'][:3])}) "
-            f"— {c['body'][:200]}"
+            f"comments: {c.get('comments', 0)}, updated: {c.get('updated_at', '')} — "
+            f"{c['body'][:200]}"
         )
 
     prompt = f"""You are an open source contribution advisor. A developer with these skills wants to contribute:
