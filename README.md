@@ -211,6 +211,19 @@ GitHub search is free (rate-limited without a token). LLM ranking costs whatever
 
 Contributions welcome. If GitSense helped you find your first open source contribution, that's the best feedback possible.
 
+## Release
+
+Releases are published through GitHub Actions with PyPI Trusted Publishing. No PyPI token is stored in the repository.
+
+Before publishing for the first time, configure a PyPI trusted publisher for:
+
+- owner: `he-yufeng`
+- repository: `GitSense`
+- workflow: `publish.yml`
+- environment: `pypi`
+
+Then publish a GitHub release, or run the `Publish` workflow manually. The workflow builds the package, runs `twine check`, and uploads the verified artifacts to PyPI.
+
 ## License
 
 [MIT](LICENSE)

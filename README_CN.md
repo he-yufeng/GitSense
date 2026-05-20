@@ -207,6 +207,19 @@ GitHub 搜索免费（无 token 有限流）。LLM 排序看你用什么模型�
 
 欢迎贡献。如果 GitSense 帮你找到了第一个开源贡献机会，这就是最好的反馈。
 
+## 发布
+
+GitSense 通过 GitHub Actions + PyPI Trusted Publishing 发布，不在仓库里保存 PyPI token。
+
+首次发布前，需要在 PyPI 网页配置 trusted publisher：
+
+- owner: `he-yufeng`
+- repository: `GitSense`
+- workflow: `publish.yml`
+- environment: `pypi`
+
+配置好之后，发布 GitHub Release，或手动运行 `Publish` workflow。workflow 会先构建包、运行 `twine check`，再把校验通过的产物上传到 PyPI。
+
 ## 许可证
 
 [MIT](LICENSE)
