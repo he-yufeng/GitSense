@@ -1,3 +1,3 @@
-"""GitSense — find your next open source contribution, powered by AI."""
+"""GitSense — find contribution targets and check repo fit."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

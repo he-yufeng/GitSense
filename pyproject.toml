@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gitsense"
-version = "0.1.0"
-description = "AI-powered open source contribution finder — discover issues that match your skills"
+version = "0.2.0"
+description = "AI-powered open source contribution finder and repo radar"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
     { name = "Yufeng He", email = "40085740+he-yufeng@users.noreply.github.com" },
 ]
-keywords = ["github", "open-source", "contribution", "ai", "agent", "issues", "llm"]
+keywords = ["github", "open-source", "contribution", "pr", "maintainer", "ai", "agent", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

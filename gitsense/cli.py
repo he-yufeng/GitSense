@@ -15,7 +15,7 @@ console = Console()
 @click.group()
 @click.version_option(__version__, prog_name="gitsense")
 def main():
-    """GitSense — find your next open source contribution, powered by AI."""
+    """GitSense — find contribution targets and check repo fit."""
     pass
 
 
@@ -171,3 +171,102 @@ def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
             str(issue.get("comments", 0)),
         )
     console.print(t)
+
+
+@main.command()
+@click.argument("repos", nargs=-1)
+@click.option("--targets", type=click.Path(exists=True, dir_okay=False), help="File with one owner/repo per line")
+@click.option("--days", default=90, show_default=True, help="Recent PR window to inspect")
+@click.option("--stale-days", default=14, show_default=True, help="Open PR age counted as stale")
+@click.option("--skills", "-s", default="", help="Your skills, comma-separated, for fit signals")
+@click.option("--sample", default=20, show_default=True, help="Merged PR sample size per repo")
+@click.option("--out", type=click.Path(dir_okay=False), help="Write a Markdown report")
+def radar(
+    repos: tuple[str, ...],
+    targets: str | None,
+    days: int,
+    stale_days: int,
+    skills: str,
+    sample: int,
+    out: str | None,
+):
+    """Score repos before you spend a weekend on a PR.
+
+    \b
+    Examples:
+        gitsense radar vllm-project/vllm --skills python,cuda,llm
+        gitsense radar --targets targets.txt --days 90 --out radar.md
+    """
+    from pathlib import Path
+
+    from gitsense.radar import analyze_repo, load_target_repos, render_markdown
+
+    if days <= 0:
+        raise click.UsageError("--days must be greater than zero")
+    if stale_days <= 0:
+        raise click.UsageError("--stale-days must be greater than zero")
+    if sample <= 0:
+        raise click.UsageError("--sample must be greater than zero")
+
+    target_repos = list(repos)
+    if targets:
+        target_repos.extend(load_target_repos(targets))
+    if not target_repos:
+        raise click.UsageError("pass at least one repo or --targets file")
+
+    skill_list = [skill.strip() for skill in skills.split(",") if skill.strip()]
+    reports = []
+    for repo in dict.fromkeys(target_repos):
+        with console.status(f"[bold blue]Checking {repo}..."):
+            reports.append(
+                analyze_repo(
+                    repo,
+                    days=days,
+                    stale_days=stale_days,
+                    skills=skill_list,
+                    sample_size=sample,
+                )
+            )
+
+    reports.sort(key=lambda report: report.score, reverse=True)
+    _print_radar_results(reports)
+
+    if out:
+        Path(out).write_text(render_markdown(reports), encoding="utf-8")
+        console.print(f"\n[green]Wrote report:[/green] {out}")
+
+
+def _print_radar_results(reports) -> None:
+    t = Table(title="GitSense Radar", show_lines=False)
+    t.add_column("Repo", style="bold", max_width=34)
+    t.add_column("Score", justify="right", width=5)
+    t.add_column("Action", width=14)
+    t.add_column("Merged", justify="right", width=7)
+    t.add_column("Open", justify="right", width=5)
+    t.add_column("Stale", justify="right", width=5)
+    t.add_column("Merge", justify="right", width=7)
+    t.add_column("Reply", justify="right", width=7)
+
+    for report in reports:
+        color = "green" if report.score >= 75 else "yellow" if report.score >= 45 else "red"
+        t.add_row(
+            report.repo,
+            f"[{color}]{report.score}[/{color}]",
+            report.recommendation,
+            str(report.merged_prs),
+            str(report.open_prs),
+            str(report.stale_prs),
+            _fmt_days(report.median_merge_days),
+            _fmt_days(report.median_maintainer_response_days),
+        )
+
+    console.print(t)
+    console.print("\n[dim]Signals use public GitHub PR history. Treat this as a triage pass, not a guarantee.[/dim]")
+
+
+def _fmt_days(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    if value < 1:
+        return "<1d"
+    return f"{value:.1f}d"

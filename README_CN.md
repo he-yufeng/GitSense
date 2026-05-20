@@ -2,9 +2,9 @@
 
 # GitSense
 
-**AI 驱动的开源贡献机会发现器。**
+**不只帮你找 issue，还帮你判断这个仓库值不值得投 PR。**
 
-输入你的技术栈 → 在 GitHub 全站搜索你能修的 issue → 按匹配度排序，告诉你怎么下手。
+输入你的技术栈 → 全站搜索你能修的 issue → 按匹配度排序 → 再用 PR 历史评估仓库的 review / merge 友好度。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -21,6 +21,8 @@
 想给开源项目贡献代码，但找 issue 太痛苦了。翻几百个 issue，大部分要么被认领了，要么描述不清，要么超出你的能力范围。找一个靠谱的 issue 往往就花掉一个小时。
 
 **GitSense** 帮你搜。它在 GitHub 全站搜索未认领的 open issue，然后用 LLM 按照你的技术栈匹配度排序，直接告诉你怎么上手。
+
+新加入的 Radar 模式解决另一个更现实的问题：这个仓库到底值不值得投 PR？它会看近期 merged PR、积压 PR、超过两周没合的比例、维护者响应时间、外部贡献者合入比例和你的技能匹配度，先帮你避开“认真做了但没人 review”的坑。
 
 ## 快速上手
 
@@ -43,6 +45,9 @@ gitsense find --skills python,llm --updated-days 30 --max-comments 10
 
 # 扫描某个特定仓库
 gitsense scan vllm-project/vllm --skills python,cuda
+
+# 提 PR 前先判断仓库是否值得投入
+gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
 ```
 
 ## 效果演示
@@ -87,6 +92,8 @@ $ gitsense find --skills python,llm,cuda --stars 1000
 
 4. **展示** — 用 Rich 在终端输出排序结果。
 
+5. **Radar** — 用公开 PR 历史给目标仓库打分：近期合入量、open / stale PR backlog、中位合入时间、维护者响应时间、外部贡献者合入比例、技术栈匹配度。
+
 ## 用法详解
 
 ### 全站搜索
@@ -130,6 +137,21 @@ gitsense scan HKUDS/LightRAG --skills python,rag
 gitsense scan vllm-project/vllm --skills python,cuda --updated-days 14
 ```
 
+### 提 PR 前评估仓库
+
+```bash
+# 对比几个目标仓库
+gitsense radar vllm-project/vllm microsoft/qlib MoonshotAI/kimi-cli --skills python,llm
+
+# 从文件读取候选仓库，每行一个 owner/repo
+gitsense radar --targets targets.txt --skills python,agents --out radar.md
+
+# 把超过两周还 open 的 PR 算作 stale
+gitsense radar stanfordnlp/dspy --stale-days 14
+```
+
+Radar 不是预言机，它更像开源贡献前的尽调表。它不会保证你的 PR 一定被合，但能快速告诉你：这个仓库最近还在合外部 PR 吗？维护者会回复吗？open PR 是健康流动还是长期堆积？这类判断对求职型开源贡献尤其重要。
+
 ## 配置
 
 ### GitHub Token（推荐）
@@ -137,7 +159,7 @@ gitsense scan vllm-project/vllm --skills python,cuda --updated-days 14
 没有 token 每分钟只能搜 10 次，有 token 可以 30 次：
 
 ```bash
-export GITHUB_TOKEN=ghp_...
+export GITHUB_TOKEN=your-github-token
 ```
 
 ### LLM 服务
@@ -146,10 +168,10 @@ GitSense 用 OpenAI 兼容接口做排序。没有 API key 也能用，只是没
 
 ```bash
 # OpenAI
-export OPENAI_API_KEY=sk-...
+export OPENAI_API_KEY=your-openai-key
 
 # OpenRouter（100+ 模型）
-export OPENROUTER_API_KEY=sk-or-...
+export OPENROUTER_API_KEY=your-openrouter-key
 
 # 本地模型（Ollama）
 export OPENAI_BASE_URL=http://localhost:11434/v1
@@ -178,8 +200,8 @@ GitHub 搜索免费（无 token 有限流）。LLM 排序看你用什么模型�
 
 - [ ] 个人主页模式：读你的 GitHub profile 自动检测技能
 - [ ] 订阅模式：每天/每周推送新的匹配 issue
-- [ ] PR 成功率预测：根据仓库历史估计 merge 概率
-- [ ] 仓库健康检查：提 PR 之前评估维护者活跃度
+- [x] Repo Radar：提 PR 之前评估维护者活跃度和仓库合入友好度
+- [ ] PR 成功率预测：针对某个 draft PR 估计合入概率
 
 ## 贡献
 

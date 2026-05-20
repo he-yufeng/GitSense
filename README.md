@@ -2,9 +2,9 @@
 
 # GitSense
 
-**Find your next open source contribution, powered by AI.**
+**Find your next open source contribution, then check whether the repo is worth your PR.**
 
-Tell it your skills → it searches GitHub for open issues you can fix → ranks them by match and tells you how to start.
+Tell it your skills → it searches GitHub for open issues you can fix → ranks them by match → scores repos by maintainer responsiveness and PR merge patterns.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -21,6 +21,8 @@ Tell it your skills → it searches GitHub for open issues you can fix → ranks
 You want to contribute to open source, but finding the right issue is painful. You scroll through hundreds of issues on GitHub, most of which are either claimed, too vague, out of your skill range, or just not worth the effort. By the time you find something decent, you've burned an hour on browsing alone.
 
 **GitSense** does the searching for you. It queries GitHub for open, unassigned issues across thousands of repos, then uses an LLM to rank them by how well they match YOUR specific skills and tell you exactly how to get started.
+
+The new Radar mode answers the next question: is this repo actually worth your PR? It checks public PR history, stale backlog, outsider merge ratio, and maintainer response time before you invest a weekend in a repo that might ignore good work.
 
 ## Quick Start
 
@@ -43,6 +45,9 @@ gitsense find --skills python,llm --updated-days 30 --max-comments 10
 
 # Scan a specific repo
 gitsense scan vllm-project/vllm --skills python,cuda
+
+# Score repos before spending a weekend on a PR
+gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
 ```
 
 ## Demo
@@ -91,6 +96,8 @@ Ranking with gpt-4o-mini...
 
 4. **Display** — Renders ranked results in a clean terminal UI with Rich.
 
+5. **Radar** — Scores target repos from public PR signals: recent merged PRs, open/stale PR backlog, median merge time, maintainer response time, outside contributor merge ratio, and skill fit.
+
 ## Usage
 
 ### Find across all of GitHub
@@ -134,6 +141,21 @@ gitsense scan HKUDS/LightRAG --skills python,rag
 gitsense scan vllm-project/vllm --skills python,cuda --updated-days 14
 ```
 
+### Score repos before opening a PR
+
+```bash
+# Compare a few target repos
+gitsense radar vllm-project/vllm microsoft/qlib MoonshotAI/kimi-cli --skills python,llm
+
+# Use a file, one owner/repo per line
+gitsense radar --targets targets.txt --skills python,agents --out radar.md
+
+# Treat PRs older than two weeks as stale
+gitsense radar stanfordnlp/dspy --stale-days 14
+```
+
+Radar is not a prediction oracle. It is a fast triage pass for contributors who care about ROI: recent merge velocity, maintainer response time, stale PR ratio, outsider-friendliness, and whether the repo matches your skill stack.
+
 ## Configuration
 
 ### GitHub Token (recommended)
@@ -141,7 +163,7 @@ gitsense scan vllm-project/vllm --skills python,cuda --updated-days 14
 Without a token you get 10 requests/minute. With a token, 30/minute:
 
 ```bash
-export GITHUB_TOKEN=ghp_...
+export GITHUB_TOKEN=your-github-token
 ```
 
 ### LLM Provider
@@ -150,10 +172,10 @@ GitSense uses an OpenAI-compatible API for ranking. Without an API key, it still
 
 ```bash
 # OpenAI
-export OPENAI_API_KEY=sk-...
+export OPENAI_API_KEY=your-openai-key
 
 # OpenRouter (100+ models)
-export OPENROUTER_API_KEY=sk-or-...
+export OPENROUTER_API_KEY=your-openrouter-key
 
 # Local (Ollama)
 export OPENAI_BASE_URL=http://localhost:11434/v1
@@ -182,8 +204,8 @@ GitHub search is free (rate-limited without a token). LLM ranking costs whatever
 
 - [ ] Profile mode: read your GitHub profile to auto-detect skills
 - [ ] Watch mode: get daily/weekly digests of new matching issues
-- [ ] PR success prediction: estimate merge probability based on repo patterns
-- [ ] Repo health check: assess how responsive maintainers are before you invest time
+- [x] Repo radar: assess maintainer responsiveness before you invest time
+- [ ] PR success prediction: estimate merge probability for a specific draft PR
 
 ## Contributing
 

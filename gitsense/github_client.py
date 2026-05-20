@@ -39,12 +39,36 @@ def search_issues(
     return resp.json().get("items", [])
 
 
+def search_issue_count(query: str) -> int:
+    """Return the total count for a GitHub issue/PR search."""
+    resp = httpx.get(
+        f"{GITHUB_API}/search/issues",
+        params={"q": query, "per_page": 1},
+        headers=_get_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return int(resp.json().get("total_count", 0))
+
+
 def get_repo_info(owner: str, repo: str) -> dict[str, Any]:
     """Get repository metadata."""
     resp = httpx.get(
         f"{GITHUB_API}/repos/{owner}/{repo}",
         headers=_get_headers(),
         timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_issue_comments(owner: str, repo: str, number: int) -> list[dict[str, Any]]:
+    """Get issue comments for a GitHub issue or pull request number."""
+    resp = httpx.get(
+        f"{GITHUB_API}/repos/{owner}/{repo}/issues/{number}/comments",
+        params={"per_page": 100},
+        headers=_get_headers(),
+        timeout=30,
     )
     resp.raise_for_status()
     return resp.json()
