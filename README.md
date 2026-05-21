@@ -27,7 +27,7 @@ The new Radar mode answers the next question: is this repo actually worth your P
 ## Quick Start
 
 ```bash
-pip install gitsense
+pip install gitsense-radar
 ```
 
 ```bash
@@ -217,6 +217,7 @@ Releases are published through GitHub Actions with PyPI Trusted Publishing. No P
 
 Before publishing for the first time, configure a PyPI trusted publisher for:
 
+- project name: `gitsense-radar`
 - owner: `he-yufeng`
 - repository: `GitSense`
 - workflow: `publish.yml`

@@ -27,7 +27,7 @@
 ## 快速上手
 
 ```bash
-pip install gitsense
+pip install gitsense-radar
 ```
 
 ```bash
@@ -213,6 +213,7 @@ GitSense 通过 GitHub Actions + PyPI Trusted Publishing 发布，不在仓库�
 
 首次发布前，需要在 PyPI 网页配置 trusted publisher：
 
+- project name: `gitsense-radar`
 - owner: `he-yufeng`
 - repository: `GitSense`
 - workflow: `publish.yml`

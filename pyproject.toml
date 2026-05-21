@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gitsense"
+name = "gitsense-radar"
 version = "0.2.0"
 description = "AI-powered open source contribution finder and repo radar"
 readme = "README.md"
