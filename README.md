@@ -22,7 +22,7 @@ You want to contribute to open source, but finding the right issue is painful. Y
 
 **GitSense** does the searching for you. It queries GitHub for open, unassigned issues across thousands of repos, then uses an LLM to rank them by how well they match YOUR specific skills and tell you exactly how to get started.
 
-The new Radar mode answers the next question: is this repo actually worth your PR? It checks public PR history, stale backlog, outsider merge ratio, and maintainer response time before you invest a weekend in a repo that might ignore good work.
+The new Radar mode answers the next question: is this repo actually worth your PR? It checks public PR history, stale backlog, open-to-merged PR pressure, outsider merge ratio, and maintainer response time before you invest a weekend in a repo that might ignore good work.
 
 ## Quick Start
 
@@ -96,7 +96,7 @@ Ranking with gpt-4o-mini...
 
 4. **Display** — Renders ranked results in a clean terminal UI with Rich.
 
-5. **Radar** — Scores target repos from public PR signals: recent merged PRs, open/stale PR backlog, median merge time, maintainer response time, outside contributor merge ratio, and skill fit.
+5. **Radar** — Scores target repos from public PR signals: recent merged PRs, open/stale PR backlog, open-to-merged pressure, median merge time, maintainer response time, outside contributor merge ratio, risk flags, and skill fit.
 
 ## Usage
 
@@ -154,7 +154,7 @@ gitsense radar --targets targets.txt --skills python,agents --out radar.md
 gitsense radar stanfordnlp/dspy --stale-days 14
 ```
 
-Radar is not a prediction oracle. It is a fast triage pass for contributors who care about ROI: recent merge velocity, maintainer response time, stale PR ratio, outsider-friendliness, and whether the repo matches your skill stack.
+Radar is not a prediction oracle. It is a fast triage pass for contributors who care about ROI: recent merge velocity, maintainer response time, stale PR ratio, open-to-merged pressure, outsider-friendliness, and whether the repo matches your skill stack.
 
 ## Configuration
 

@@ -22,7 +22,7 @@
 
 **GitSense** 帮你搜。它在 GitHub 全站搜索未认领的 open issue，然后用 LLM 按照你的技术栈匹配度排序，直接告诉你怎么上手。
 
-新加入的 Radar 模式解决另一个更现实的问题：这个仓库到底值不值得投 PR？它会看近期 merged PR、积压 PR、超过两周没合的比例、维护者响应时间、外部贡献者合入比例和你的技能匹配度，先帮你避开“认真做了但没人 review”的坑。
+新加入的 Radar 模式解决另一个更现实的问题：这个仓库到底值不值得投 PR？它会看近期 merged PR、积压 PR、超过两周没合的比例、open-to-merged PR 压力、维护者响应时间、外部贡献者合入比例、风险标记和你的技能匹配度，先帮你避开“认真做了但没人 review”的坑。
 
 ## 快速上手
 
@@ -92,7 +92,7 @@ $ gitsense find --skills python,llm,cuda --stars 1000
 
 4. **展示** — 用 Rich 在终端输出排序结果。
 
-5. **Radar** — 用公开 PR 历史给目标仓库打分：近期合入量、open / stale PR backlog、中位合入时间、维护者响应时间、外部贡献者合入比例、技术栈匹配度。
+5. **Radar** — 用公开 PR 历史给目标仓库打分：近期合入量、open / stale PR backlog、open-to-merged 压力、中位合入时间、维护者响应时间、外部贡献者合入比例、风险标记、技术栈匹配度。
 
 ## 用法详解
 
@@ -150,7 +150,7 @@ gitsense radar --targets targets.txt --skills python,agents --out radar.md
 gitsense radar stanfordnlp/dspy --stale-days 14
 ```
 
-Radar 不是预言机，它更像开源贡献前的尽调表。它不会保证你的 PR 一定被合，但能快速告诉你：这个仓库最近还在合外部 PR 吗？维护者会回复吗？open PR 是健康流动还是长期堆积？这类判断对求职型开源贡献尤其重要。
+Radar 不是预言机，它更像开源贡献前的尽调表。它不会保证你的 PR 一定被合，但能快速告诉你：这个仓库最近还在合外部 PR 吗？维护者会回复吗？open PR 是健康流动还是长期堆积？open PR 压力和近期合入量是否失衡？这类判断对求职型开源贡献尤其重要。
 
 ## 配置
 

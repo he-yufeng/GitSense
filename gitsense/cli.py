@@ -246,6 +246,7 @@ def _print_radar_results(reports) -> None:
     t.add_column("Stale", justify="right", width=5)
     t.add_column("Merge", justify="right", width=7)
     t.add_column("Reply", justify="right", width=7)
+    t.add_column("Flags", max_width=28)
 
     for report in reports:
         color = "green" if report.score >= 75 else "yellow" if report.score >= 45 else "red"
@@ -258,6 +259,7 @@ def _print_radar_results(reports) -> None:
             str(report.stale_prs),
             _fmt_days(report.median_merge_days),
             _fmt_days(report.median_maintainer_response_days),
+            ", ".join(report.risk_flags[:2]),
         )
 
     console.print(t)

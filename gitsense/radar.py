@@ -34,8 +34,10 @@ class RepoRadarReport:
     median_merge_days: float | None
     median_maintainer_response_days: float | None
     external_merged_ratio: float | None
+    open_to_merged_ratio: float | None = None
     skill_matches: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    risk_flags: list[str] = field(default_factory=list)
 
 
 def parse_repo_name(repo: str) -> tuple[str, str]:
@@ -106,6 +108,7 @@ def analyze_repo(
     external_ratio = _external_ratio(merged_sample)
     skill_matches = _match_skills(repo_info, languages, skills or [])
     stale_ratio = (stale_count / open_count) if open_count else 0.0
+    open_to_merged_ratio = (open_count / merged_count) if merged_count else None
 
     score, notes = score_repo(
         merged_prs=merged_count,
@@ -116,6 +119,14 @@ def analyze_repo(
         external_merged_ratio=external_ratio,
         skill_matches=skill_matches,
         stars=int(repo_info.get("stargazers_count") or 0),
+    )
+    risk_flags = risk_flags_for_repo(
+        merged_prs=merged_count,
+        open_prs=open_count,
+        stale_ratio=stale_ratio,
+        median_merge_days=median(merge_days) if merge_days else None,
+        median_maintainer_response_days=median(response_days) if response_days else None,
+        external_merged_ratio=external_ratio,
     )
 
     return RepoRadarReport(
@@ -131,8 +142,10 @@ def analyze_repo(
         median_merge_days=median(merge_days) if merge_days else None,
         median_maintainer_response_days=median(response_days) if response_days else None,
         external_merged_ratio=external_ratio,
+        open_to_merged_ratio=open_to_merged_ratio,
         skill_matches=skill_matches,
         notes=notes,
+        risk_flags=risk_flags,
     )
 
 
@@ -200,6 +213,13 @@ def score_repo(
             score -= 8
             notes.append("recent merged PRs are mostly internal")
 
+    if open_prs >= 100 and merged_prs < 10:
+        score -= 10
+        notes.append("open PR queue is much larger than recent merge volume")
+    elif open_prs >= 50 and merged_prs < 5:
+        score -= 8
+        notes.append("crowded open PR queue")
+
     if skill_matches:
         score += min(10, len(skill_matches) * 3)
         notes.append(f"matches skills: {', '.join(skill_matches[:4])}")
@@ -210,6 +230,33 @@ def score_repo(
         score += 3
 
     return max(0, min(100, score)), notes
+
+
+def risk_flags_for_repo(
+    *,
+    merged_prs: int,
+    open_prs: int,
+    stale_ratio: float,
+    median_merge_days: float | None,
+    median_maintainer_response_days: float | None,
+    external_merged_ratio: float | None,
+) -> list[str]:
+    flags: list[str] = []
+
+    if merged_prs == 0:
+        flags.append("no recent merges")
+    if open_prs >= 100 and stale_ratio >= 0.25:
+        flags.append("crowded stale PR queue")
+    elif open_prs >= 75:
+        flags.append("large open PR queue")
+    if median_merge_days is not None and median_merge_days > 45:
+        flags.append("slow merge time")
+    if median_maintainer_response_days is not None and median_maintainer_response_days > 21:
+        flags.append("slow maintainer response")
+    if external_merged_ratio is not None and external_merged_ratio < 0.2:
+        flags.append("mostly internal recent merges")
+
+    return flags
 
 
 def recommendation_for_score(score: int) -> str:
@@ -226,14 +273,15 @@ def render_markdown(reports: list[RepoRadarReport]) -> str:
     lines = [
         "# GitSense Radar Report",
         "",
-        "| Repo | Score | Action | Merged PRs | Open PRs | Stale PRs | Median merge | Maintainer response |",
-        "| --- | ---: | --- | ---: | ---: | ---: | --- | --- |",
+        "| Repo | Score | Action | Merged PRs | Open PRs | Stale PRs | Open/Merged | Median merge | Maintainer response |",
+        "| --- | ---: | --- | ---: | ---: | ---: | ---: | --- | --- |",
     ]
     for report in reports:
         lines.append(
             "| "
             f"{report.repo} | {report.score} | {report.recommendation} | "
             f"{report.merged_prs} | {report.open_prs} | {report.stale_prs} | "
+            f"{_fmt_ratio(report.open_to_merged_ratio)} | "
             f"{_fmt_days(report.median_merge_days)} | "
             f"{_fmt_days(report.median_maintainer_response_days)} |"
         )
@@ -255,6 +303,8 @@ def render_markdown(reports: list[RepoRadarReport]) -> str:
             lines.append(f"- Skill matches: `{', '.join(report.skill_matches)}`")
         if report.notes:
             lines.append(f"- Signals: {', '.join(report.notes)}")
+        if report.risk_flags:
+            lines.append(f"- Risk flags: {', '.join(report.risk_flags)}")
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -354,3 +404,9 @@ def _fmt_percent(value: float | None) -> str:
     if value is None:
         return "n/a"
     return f"{value * 100:.0f}%"
+
+
+def _fmt_ratio(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.1f}x"

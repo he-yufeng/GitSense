@@ -5,6 +5,7 @@ from gitsense.radar import (
     parse_repo_name,
     recommendation_for_score,
     render_markdown,
+    risk_flags_for_repo,
     score_repo,
 )
 
@@ -61,6 +62,21 @@ def test_score_repo_penalizes_stale_internal_backlog():
     assert recommendation_for_score(score) == "Avoid for now"
 
 
+def test_risk_flags_call_out_crowded_internal_repos():
+    flags = risk_flags_for_repo(
+        merged_prs=3,
+        open_prs=140,
+        stale_ratio=0.4,
+        median_merge_days=50,
+        median_maintainer_response_days=25,
+        external_merged_ratio=0.1,
+    )
+
+    assert "crowded stale PR queue" in flags
+    assert "slow merge time" in flags
+    assert "mostly internal recent merges" in flags
+
+
 def test_analyze_repo_uses_public_pr_signals(monkeypatch):
     def fake_repo_info(owner, repo):
         return {
@@ -115,6 +131,7 @@ def test_analyze_repo_uses_public_pr_signals(monkeypatch):
 
     assert report.merged_prs == 12
     assert report.stale_prs == 2
+    assert report.open_to_merged_ratio == 8 / 12
     assert report.skill_matches == ["python"]
     assert report.median_merge_days == 6
     assert report.median_maintainer_response_days == 1.5
@@ -139,12 +156,15 @@ def test_render_markdown_includes_key_fields():
                 median_merge_days=2,
                 median_maintainer_response_days=1,
                 external_merged_ratio=0.5,
+                open_to_merged_ratio=0.4,
+                risk_flags=["manual review needed"],
             )
         ]
     )
 
     assert "# GitSense Radar Report" in markdown
-    assert "| o/r | 81 | Go |" in markdown
+    assert "| o/r | 81 | Go | 10 | 4 | 1 | 0.4x |" in markdown
+    assert "Risk flags: manual review needed" in markdown
 
 
 def test_radar_cli_sorts_and_writes_report(monkeypatch, tmp_path):
