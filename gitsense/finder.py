@@ -39,6 +39,9 @@ def build_search_queries(
         queries.append(f"{skill} {filter_str}")
 
     # Also search for "good first issue" across skills
+    if not skills:
+        raise ValueError("Atleast one skill must be provided for the search to work.")
+        
     skill_str = " OR ".join(skills[:3])
     queries.append(f'{skill_str} {filter_str} label:"good first issue"')
 
