@@ -28,7 +28,7 @@ def build_search_queries(
         filters.append(f"stars:>={min_stars}")
     if updated_days is not None:
         if updated_days <= 0:
-            raise ValueError("updated_days must be greater than zero")
+            raise ValueError(f"updated_days must be greater than zero, got {updated_days}")
         since = date.today() - timedelta(days=updated_days)
         filters.append(f"updated:>={since.isoformat()}")
     if labels:
