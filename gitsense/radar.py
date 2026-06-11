@@ -41,22 +41,35 @@ class RepoRadarReport:
 
 
 def parse_repo_name(repo: str) -> tuple[str, str]:
-    cleaned = repo.strip().removeprefix("https://github.com/").strip("/")
-    parts = [part for part in cleaned.split("/") if part]
-    if len(parts) < 2:
-        raise ValueError("repo must look like owner/name")
-    return parts[0], parts[1]
+    try:
+        cleaned = repo.strip().removeprefix("https://github.com/").strip("/")
+        parts = [part for part in cleaned.split("/") if part]
+        if len(parts) < 2:
+            raise ValueError("repo must look like owner/name")
+        return parts[0], parts[1]
+        
+    except ValueError as e:
+        print(f"Invalid repo: {e}")
+        return None
 
 
 def load_target_repos(path: str | Path) -> list[str]:
-    repos: list[str] = []
-    for raw_line in Path(path).read_text(encoding="utf-8").splitlines():
-        line = raw_line.split("#", 1)[0].strip()
-        if not line:
-            continue
-        repos.append(line.split(",", 1)[0].strip())
-    return repos
+    try:
+        repos: list[str] = []
+        for raw_line in Path(path).read_text(encoding="utf-8").splitlines():
+            line = raw_line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            repos.append(line.split(",", 1)[0].strip())
+        return repos
+        
+    except FileNotFoundError:
+        print("File not found")
+        return []
 
+    except OSError as e:
+        print(f"Unable to read file: {e}")
+        return []
 
 def analyze_repo(
     repo: str,
