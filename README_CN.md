@@ -146,6 +146,9 @@ gitsense radar vllm-project/vllm microsoft/qlib MoonshotAI/kimi-cli --skills pyt
 # 从文件读取候选仓库，每行一个 owner/repo
 gitsense radar --targets targets.txt --skills python,agents --out radar.md
 
+# 输出机器可读结果，方便写入 handoff 或后续脚本处理
+gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
+
 # 把超过两周还 open 的 PR 算作 stale
 gitsense radar stanfordnlp/dspy --stale-days 14
 ```

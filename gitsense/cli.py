@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
+
 import click
 from rich.console import Console
 from rich.panel import Panel
@@ -180,7 +183,8 @@ def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
 @click.option("--stale-days", default=14, show_default=True, help="Open PR age counted as stale")
 @click.option("--skills", "-s", default="", help="Your skills, comma-separated, for fit signals")
 @click.option("--sample", default=20, show_default=True, help="Merged PR sample size per repo")
-@click.option("--out", type=click.Path(dir_okay=False), help="Write a Markdown report")
+@click.option("--format", "fmt", type=click.Choice(["md", "json"]), default="md")
+@click.option("--out", type=click.Path(dir_okay=False), help="Write a report file")
 def radar(
     repos: tuple[str, ...],
     targets: str | None,
@@ -188,6 +192,7 @@ def radar(
     stale_days: int,
     skills: str,
     sample: int,
+    fmt: str,
     out: str | None,
 ):
     """Score repos before you spend a weekend on a PR.
@@ -229,10 +234,16 @@ def radar(
             )
 
     reports.sort(key=lambda report: report.score, reverse=True)
-    _print_radar_results(reports)
+    if fmt == "json" and not out:
+        console.print_json(json.dumps([asdict(report) for report in reports]))
+    else:
+        _print_radar_results(reports)
 
     if out:
-        Path(out).write_text(render_markdown(reports), encoding="utf-8")
+        from gitsense.radar import render_json
+
+        text = render_json(reports) if fmt == "json" else render_markdown(reports)
+        Path(out).write_text(text, encoding="utf-8")
         console.print(f"\n[green]Wrote report:[/green] {out}")
 
 

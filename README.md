@@ -150,6 +150,9 @@ gitsense radar vllm-project/vllm microsoft/qlib MoonshotAI/kimi-cli --skills pyt
 # Use a file, one owner/repo per line
 gitsense radar --targets targets.txt --skills python,agents --out radar.md
 
+# Write machine-readable evidence for another script or handoff
+gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
+
 # Treat PRs older than two weeks as stale
 gitsense radar stanfordnlp/dspy --stale-days 14
 ```

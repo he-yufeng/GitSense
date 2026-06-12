@@ -1,9 +1,12 @@
+import json
+
 from gitsense.radar import (
     RepoRadarReport,
     analyze_repo,
     load_target_repos,
     parse_repo_name,
     recommendation_for_score,
+    render_json,
     render_markdown,
     risk_flags_for_repo,
     score_repo,
@@ -167,6 +170,32 @@ def test_render_markdown_includes_key_fields():
     assert "Risk flags: manual review needed" in markdown
 
 
+def test_render_json_includes_machine_readable_fields():
+    payload = render_json(
+        [
+            RepoRadarReport(
+                repo="o/r",
+                score=81,
+                recommendation="Go",
+                stars=100,
+                primary_language="Python",
+                merged_prs=10,
+                open_prs=4,
+                stale_prs=1,
+                stale_ratio=0.25,
+                median_merge_days=2,
+                median_maintainer_response_days=1,
+                external_merged_ratio=0.5,
+                open_to_merged_ratio=0.4,
+                risk_flags=["manual review needed"],
+            )
+        ]
+    )
+
+    assert '"repo": "o/r"' in payload
+    assert '"open_to_merged_ratio": 0.4' in payload
+
+
 def test_radar_cli_sorts_and_writes_report(monkeypatch, tmp_path):
     from click.testing import CliRunner
 
@@ -222,3 +251,37 @@ def test_radar_cli_sorts_and_writes_report(monkeypatch, tmp_path):
     assert out.read_text(encoding="utf-8").index("fast/repo") < out.read_text(
         encoding="utf-8"
     ).index("slow/repo")
+
+
+def test_radar_cli_writes_json_report(monkeypatch, tmp_path):
+    from click.testing import CliRunner
+
+    from gitsense.cli import main
+
+    def fake_analyze_repo(repo, *, days, stale_days, skills, sample_size):
+        return RepoRadarReport(
+            repo=repo,
+            score=77,
+            recommendation="Go",
+            stars=1000,
+            primary_language="Python",
+            merged_prs=20,
+            open_prs=5,
+            stale_prs=1,
+            stale_ratio=0.2,
+            median_merge_days=5,
+            median_maintainer_response_days=2,
+            external_merged_ratio=0.6,
+        )
+
+    monkeypatch.setattr("gitsense.radar.analyze_repo", fake_analyze_repo)
+
+    out = tmp_path / "radar.json"
+    result = CliRunner().invoke(
+        main,
+        ["radar", "one/repo", "--format", "json", "--out", str(out)],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload[0]["repo"] == "one/repo"

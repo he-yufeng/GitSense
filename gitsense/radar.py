@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -308,6 +310,10 @@ def render_markdown(reports: list[RepoRadarReport]) -> str:
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+def render_json(reports: list[RepoRadarReport]) -> str:
+    return json.dumps([asdict(report) for report in reports], indent=2, ensure_ascii=False) + "\n"
 
 
 def _sample_maintainer_response_days(
