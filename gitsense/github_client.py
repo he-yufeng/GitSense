@@ -83,3 +83,49 @@ def get_repo_languages(owner: str, repo: str) -> dict[str, int]:
     )
     resp.raise_for_status()
     return resp.json()
+
+
+def get_pull_request(owner: str, repo: str, number: int) -> dict[str, Any]:
+    """Get a single pull request (draft, additions, changed_files, mergeable_state, ...)."""
+    resp = httpx.get(
+        f"{GITHUB_API}/repos/{owner}/{repo}/pulls/{number}",
+        headers=_get_headers(),
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_pull_request_files(owner: str, repo: str, number: int) -> list[dict[str, Any]]:
+    """List the files changed by a pull request."""
+    resp = httpx.get(
+        f"{GITHUB_API}/repos/{owner}/{repo}/pulls/{number}/files",
+        params={"per_page": 100},
+        headers=_get_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_pull_request_reviews(owner: str, repo: str, number: int) -> list[dict[str, Any]]:
+    """List the reviews on a pull request."""
+    resp = httpx.get(
+        f"{GITHUB_API}/repos/{owner}/{repo}/pulls/{number}/reviews",
+        params={"per_page": 100},
+        headers=_get_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_commit_status_state(owner: str, repo: str, ref: str) -> str:
+    """Combined CI status for a commit: 'success', 'failure', 'pending', or ''."""
+    resp = httpx.get(
+        f"{GITHUB_API}/repos/{owner}/{repo}/commits/{ref}/status",
+        headers=_get_headers(),
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json().get("state", "")

@@ -283,3 +283,53 @@ def _fmt_days(value: float | None) -> str:
     if value < 1:
         return "<1d"
     return f"{value:.1f}d"
+
+
+@main.command()
+@click.argument("pr_ref")
+def predict(pr_ref: str):
+    """Estimate how likely an open PR is to get merged, with the reasons why.
+
+    \b
+    Examples:
+        gitsense predict https://github.com/vllm-project/vllm/pull/12345
+        gitsense predict vllm-project/vllm#12345
+    """
+    from gitsense import github_client
+    from gitsense.predictor import (
+        analyze_pr,
+        derive_review_decision,
+        files_touch_tests,
+        parse_pr_ref,
+    )
+
+    try:
+        owner, repo, number = parse_pr_ref(pr_ref)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+
+    with console.status(f"[bold blue]Fetching {owner}/{repo}#{number}..."):
+        pr = github_client.get_pull_request(owner, repo, number)
+        reviews = github_client.get_pull_request_reviews(owner, repo, number)
+        files = github_client.get_pull_request_files(owner, repo, number)
+        head_sha = (pr.get("head") or {}).get("sha") or ""
+        ci_state = (
+            github_client.get_commit_status_state(owner, repo, head_sha) if head_sha else ""
+        )
+
+    prediction = analyze_pr(
+        pr,
+        review_decision=derive_review_decision(reviews),
+        ci_failing=(ci_state == "failure"),
+        touches_tests=files_touch_tests(files),
+    )
+
+    color = "green" if prediction.score >= 70 else "yellow" if prediction.score >= 45 else "red"
+    body = f"[bold {color}]{prediction.score}/100 — {prediction.label}[/bold {color}]\n\n"
+    body += "\n".join(f"  • {note}" for note in prediction.notes)
+    console.print(
+        Panel(body, title=f"PR merge prediction: {owner}/{repo}#{number}", border_style=color)
+    )
+    console.print(
+        "\n[dim]Heuristic from public PR signals. Treat it as triage, not a guarantee.[/dim]"
+    )

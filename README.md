@@ -159,6 +159,18 @@ gitsense radar stanfordnlp/dspy --stale-days 14
 
 Radar is not a prediction oracle. It is a fast triage pass for contributors who care about ROI: recent merge velocity, maintainer response time, stale PR ratio, open-to-merged pressure, outsider-friendliness, and whether the repo matches your skill stack.
 
+### Predict whether an open PR will merge
+
+```bash
+# Pass a PR URL...
+gitsense predict https://github.com/vllm-project/vllm/pull/12345
+
+# ...or the short owner/repo#number form
+gitsense predict vllm-project/vllm#12345
+```
+
+`predict` scores a single open PR out of 100 from its public signals — review decision, draft flag, merge conflicts, CI status, diff size, whether it touches tests, and age — and shows the notes behind the score. It is a triage heuristic, not a guarantee.
+
 ## Configuration
 
 ### GitHub Token (recommended)
@@ -208,7 +220,7 @@ GitHub search is free (rate-limited without a token). LLM ranking costs whatever
 - [ ] Profile mode: read your GitHub profile to auto-detect skills
 - [ ] Watch mode: get daily/weekly digests of new matching issues
 - [x] Repo radar: assess maintainer responsiveness before you invest time
-- [ ] PR success prediction: estimate merge probability for a specific draft PR
+- [x] PR success prediction: estimate merge probability for a specific draft PR
 
 ## Contributing
 
