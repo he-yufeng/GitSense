@@ -2,6 +2,7 @@ import json
 
 from gitsense.radar import (
     RepoRadarReport,
+    _match_skills,
     analyze_repo,
     load_target_repos,
     parse_repo_name,
@@ -11,6 +12,17 @@ from gitsense.radar import (
     risk_flags_for_repo,
     score_repo,
 )
+
+
+def test_match_skills_matches_whole_tokens_not_substrings():
+    repo = {"full_name": "org/proj", "description": "A Google-style category tool"}
+    langs = {"Python": 1000}
+    # short language names must not match as substrings of unrelated words
+    assert _match_skills(repo, langs, ["Go"]) == []  # "go" in "google"
+    assert _match_skills(repo, langs, ["C"]) == []  # "c" in "category"
+    # real signals still match: the language and a word in the description
+    assert _match_skills(repo, langs, ["Python"]) == ["Python"]
+    assert _match_skills({"full_name": "o/p"}, {"Go": 500}, ["Go"]) == ["Go"]
 
 
 def test_parse_repo_name_accepts_url():

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -374,7 +375,10 @@ def _match_skills(
     matches = []
     for skill in skills:
         needle = skill.strip().lower()
-        if needle and needle in haystack:
+        # Match the skill as a whole token, not a bare substring: otherwise a
+        # short language name floods false positives ("Go" in "Google", "C" in
+        # "category", and single letters match almost any description).
+        if needle and re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", haystack):
             matches.append(skill.strip())
     return matches
 
