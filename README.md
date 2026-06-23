@@ -1,8 +1,6 @@
 <div align="center">
 
-# GitSense
-
-**Find your next open source contribution, then check whether the repo is worth your PR.**
+<img src="docs/banner.png" alt="GitSense — find your next open-source contribution" width="100%">
 
 Tell it your skills → it searches GitHub for open issues you can fix → ranks them by match → scores repos by maintainer responsiveness and PR merge patterns.
 
@@ -10,7 +8,7 @@ Tell it your skills → it searches GitHub for open issues you can fix → ranks
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/he-yufeng/GitSense/actions/workflows/ci.yml/badge.svg)](https://github.com/he-yufeng/GitSense/actions)
 
-**[English](README.md) | [中文](README_CN.md)**
+**[English](README.md) · [中文](README_CN.md)** &nbsp;·&nbsp; [Quick Start](#quick-start) · [Demo](#demo) · [How It Works](#how-it-works)
 
 </div>
 
@@ -85,6 +83,8 @@ Ranking with gpt-4o-mini...
 ```
 
 ## How It Works
+
+![GitSense pipeline](docs/architecture.png)
 
 1. **Search** — Builds targeted GitHub search queries from your skills (e.g. `python is:issue is:open no:assignee stars:>=100`). Searches across all of GitHub, not just repos you follow.
 
