@@ -1,8 +1,6 @@
 <div align="center">
 
-# GitSense
-
-**不只帮你找 issue，还帮你判断这个仓库值不值得投 PR。**
+<img src="docs/banner.png" alt="GitSense — 找到你的下一个开源贡献" width="100%">
 
 输入你的技术栈 → 全站搜索你能修的 issue → 按匹配度排序 → 再用 PR 历史评估仓库的 review / merge 友好度。
 
@@ -10,7 +8,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/he-yufeng/GitSense/actions/workflows/ci.yml/badge.svg)](https://github.com/he-yufeng/GitSense/actions)
 
-**[English](README.md) | [中文](README_CN.md)**
+**[English](README.md) · [中文](README_CN.md)** &nbsp;·&nbsp; [快速上手](#快速上手) · [效果演示](#效果演示) · [工作原理](#工作原理)
 
 </div>
 
@@ -83,6 +81,8 @@ $ gitsense find --skills python,llm,cuda --stars 1000
 ```
 
 ## 工作原理
+
+![GitSense 流程](docs/architecture.png)
 
 1. **搜索** — 根据你的技术栈构造 GitHub 搜索语句（如 `python is:issue is:open no:assignee stars:>=100`），在全站搜索，不限于你 follow 的仓库。
 
