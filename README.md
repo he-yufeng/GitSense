@@ -217,10 +217,13 @@ GitHub search is free (rate-limited without a token). LLM ranking costs whatever
 
 ## Roadmap
 
-- [ ] Profile mode: read your GitHub profile to auto-detect skills
-- [ ] Watch mode: get daily/weekly digests of new matching issues
-- [x] Repo radar: assess maintainer responsiveness before you invest time
-- [x] PR success prediction: estimate merge probability for a specific draft PR
+**Shipped:** repo radar (gauge maintainer responsiveness and merge-friendliness before you invest time) and PR success prediction (estimate merge probability for a specific draft).
+
+**Planned:**
+
+- **Profile mode** — read your GitHub profile to infer languages and strengths, so the issue search is seeded without you spelling out what you know.
+- **Watch mode** — a daily/weekly digest of new issues that match your filters, so good first issues come to you instead of needing a manual re-run.
+- **Difficulty calibration** — check the radar's difficulty estimate against issues you actually closed, so the score gets more honest the more you use it.
 
 ## Contributing
 
