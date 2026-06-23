@@ -240,6 +240,12 @@ Before publishing for the first time, configure a PyPI trusted publisher for:
 
 Then publish a GitHub release, or run the `Publish` workflow manually. The workflow builds the package, runs `twine check`, and uploads the verified artifacts to PyPI.
 
+## Related projects
+
+- [RepoWiki](https://github.com/he-yufeng/RepoWiki) — generate wiki documentation for any codebase
+- [RuleForge](https://github.com/he-yufeng/RuleForge) — auto-generate AI assistant rules from a codebase
+- [agentcikit](https://github.com/he-yufeng/agentcikit) — CLI tools for AI-agent, MCP, and CI evidence and safety
+
 ## License
 
 [MIT](LICENSE)
