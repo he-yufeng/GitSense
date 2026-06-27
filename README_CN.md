@@ -227,6 +227,16 @@ GitSense 通过 GitHub Actions + PyPI Trusted Publishing 发布，不在仓库�
 
 配置好之后，发布 GitHub Release，或手动运行 `Publish` workflow。workflow 会先构建包、运行 `twine check`，再把校验通过的产物上传到 PyPI。
 
+## 相关项目
+
+我做的另外几个 agent / LLM 方向的工具，也许你也用得上：
+
+- **[CoreCoder](https://github.com/he-yufeng/CoreCoder)** — 想真正搞懂一个 coding agent 怎么运作？读完整 ~1000 行引擎，而不是黑箱
+- **[RepoWiki](https://github.com/he-yufeng/RepoWiki)** — 被丢进一个陌生代码库？给你一份带「从这里开始读」路径的 wiki（可自托管的 DeepWiki 替代）
+- **[FindJobs-Agent](https://github.com/he-yufeng/FindJobs-Agent)** — 别再手刷招聘网站，它按你的简历给岗位排序、还能跑模拟面试
+- **[ContractGuard](https://github.com/he-yufeng/ContractGuard)** — 签字前先揪出有风险的条款，自动读合同、标出危险点
+- **[CodeABC](https://github.com/he-yufeng/CodeABC)** — 不会写代码也能看懂一个项目，专给小白做的
+
 ## 许可证
 
 [MIT](LICENSE)

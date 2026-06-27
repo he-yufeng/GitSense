@@ -243,11 +243,15 @@ Before publishing for the first time, configure a PyPI trusted publisher for:
 
 Then publish a GitHub release, or run the `Publish` workflow manually. The workflow builds the package, runs `twine check`, and uploads the verified artifacts to PyPI.
 
-## Related projects
+## Related Projects
 
-- [RepoWiki](https://github.com/he-yufeng/RepoWiki) — generate wiki documentation for any codebase
-- [RuleForge](https://github.com/he-yufeng/RuleForge) — auto-generate AI assistant rules from a codebase
-- [agentcikit](https://github.com/he-yufeng/agentcikit) — CLI tools for AI-agent, MCP, and CI evidence and safety
+A few other tools I've built around agents and LLM systems:
+
+- **[CoreCoder](https://github.com/he-yufeng/CoreCoder)** — understand how a coding agent really works by reading the whole ~1k-line engine, not a black box
+- **[RepoWiki](https://github.com/he-yufeng/RepoWiki)** — dropped into an unfamiliar codebase? a guided wiki with a where-to-start reading path (self-hostable DeepWiki alternative)
+- **[FindJobs-Agent](https://github.com/he-yufeng/FindJobs-Agent)** — stop sifting job boards: it ranks postings against your resume and runs mock interviews
+- **[ContractGuard](https://github.com/he-yufeng/ContractGuard)** — catch the risky clauses before you sign: it reads contracts and flags the dangerous bits
+- **[CodeABC](https://github.com/he-yufeng/CodeABC)** — understand any codebase even if you don't code, built for non-programmers
 
 ## License
 
