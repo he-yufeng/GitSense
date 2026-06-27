@@ -229,7 +229,7 @@ GitSense 通过 GitHub Actions + PyPI Trusted Publishing 发布，不在仓库�
 
 ## 相关项目
 
-我做的另外几个 agent / LLM 方向的工具，也许你也用得上：
+如果 GitSense 帮你找到了值得做的开源活，这几个我做的工具也许你也用得上：
 
 - **[CoreCoder](https://github.com/he-yufeng/CoreCoder)** — 想真正搞懂一个 coding agent 怎么运作？读完整 ~1000 行引擎，而不是黑箱
 - **[RepoWiki](https://github.com/he-yufeng/RepoWiki)** — 被丢进一个陌生代码库？给你一份带「从这里开始读」路径的 wiki（可自托管的 DeepWiki 替代）
