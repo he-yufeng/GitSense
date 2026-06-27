@@ -47,7 +47,7 @@ def parse_repo_name(repo: str) -> tuple[str, str]:
     cleaned = repo.strip().removeprefix("https://github.com/").strip("/")
     parts = [part for part in cleaned.split("/") if part]
     if len(parts) < 2:
-        raise ValueError("repo must look like owner/name")
+        raise ValueError(f"repo must look like 'owner/name', got: {repo!r}")
     return parts[0], parts[1]
 
 

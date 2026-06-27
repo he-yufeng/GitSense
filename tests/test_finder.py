@@ -1,5 +1,7 @@
 """Tests for the search query builder."""
 
+import pytest
+
 from gitsense.finder import build_search_queries, fetch_candidates
 
 
@@ -36,6 +38,16 @@ def test_zero_stars():
 def test_include_assigned_drops_no_assignee_filter():
     queries = build_search_queries(["python"], min_stars=0, labels=[], include_assigned=True)
     assert not any("no:assignee" in q for q in queries)
+
+
+def test_empty_skills_rejected():
+    with pytest.raises(ValueError, match="skills must not be empty"):
+        build_search_queries([], min_stars=0, labels=[])
+
+
+def test_nonpositive_updated_days_rejected():
+    with pytest.raises(ValueError, match="got 0"):
+        build_search_queries(["python"], min_stars=0, labels=[], updated_days=0)
 
 
 def test_fetch_candidates_filters_comment_heavy_issues(monkeypatch):

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from gitsense.radar import (
     RepoRadarReport,
     _match_skills,
@@ -27,6 +29,11 @@ def test_match_skills_matches_whole_tokens_not_substrings():
 
 def test_parse_repo_name_accepts_url():
     assert parse_repo_name("https://github.com/vllm-project/vllm") == ("vllm-project", "vllm")
+
+
+def test_parse_repo_name_rejects_bare_name():
+    with pytest.raises(ValueError, match="owner/name"):
+        parse_repo_name("vllm")
 
 
 def test_load_target_repos_ignores_comments(tmp_path):

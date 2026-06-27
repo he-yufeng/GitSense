@@ -20,6 +20,8 @@ def build_search_queries(
     include_assigned: bool = False,
 ) -> list[str]:
     """Build GitHub search queries from user skills and filters."""
+    if not skills:
+        raise ValueError("skills must not be empty: pass at least one skill")
     queries = []
     filters = ["is:issue", "is:open", "archived:false"]
     if not include_assigned:
@@ -28,7 +30,7 @@ def build_search_queries(
         filters.append(f"stars:>={min_stars}")
     if updated_days is not None:
         if updated_days <= 0:
-            raise ValueError("updated_days must be greater than zero")
+            raise ValueError(f"updated_days must be greater than zero, got {updated_days}")
         since = date.today() - timedelta(days=updated_days)
         filters.append(f"updated:>={since.isoformat()}")
     if labels:
