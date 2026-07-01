@@ -30,22 +30,11 @@ pip install gitsense-radar
 ```
 
 ```bash
-# 按技术栈找 issue
+# 按技术栈找 issue，LLM 帮你排序
 gitsense find --skills python,llm,cuda
 
-# 只看 500 star 以上的仓库
-gitsense find --skills rust,wasm --stars 500
-
-# 只看 bug 标签
-gitsense find --skills python --labels bug
-
-# 优先看近期活跃、讨论噪声低的问题
-gitsense find --skills python,llm --updated-days 30 --max-comments 10
-
-# 扫描某个特定仓库
+# 扫描单个仓库，或提 PR 前先评估仓库
 gitsense scan vllm-project/vllm --skills python,cuda
-
-# 提 PR 前先判断仓库是否值得投入
 gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
 ```
 
@@ -97,76 +86,24 @@ $ gitsense find --skills python,llm,cuda --stars 1000
 
 ## 用法详解
 
-### 全站搜索
-
 ```bash
-# 基本用法
-gitsense find --skills python,fastapi,postgres
+# 全站找 issue，按技能匹配度排序
+gitsense find --skills python,fastapi --stars 5000 --labels bug
+gitsense find --skills python --no-llm                              # 跳过 LLM 排序（更快）
+gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 
-# 只看高 star 仓库
-gitsense find --skills go,kubernetes --stars 5000
+# 扫描单个仓库里未认领的 open issue
+gitsense scan pytorch/pytorch --skills python --updated-days 14
 
-# 只看 bug
-gitsense find --skills typescript,react --labels bug
-
-# 跳过 LLM 排序（更快，只看原始结果）
-gitsense find --skills python --no-llm
-
-# 指定模型
-gitsense find --skills python --model anthropic/claude-sonnet-4
-
-# 显示更多结果
-gitsense find --skills python --limit 15
-
-# 聚焦近期活跃的问题，避开长期争论串
-gitsense find --skills python,llm --updated-days 30 --max-comments 10
-
-# 主动扫描 backlog 时，也可以包含已认领 issue
-gitsense find --skills python --include-assigned
-```
-
-### 扫描特定仓库
-
-```bash
-# 列出所有未认领的 open issue
-gitsense scan pytorch/pytorch
-
-# 按技术栈过滤
-gitsense scan HKUDS/LightRAG --skills python,rag
-
-# 只看最近活跃的问题
-gitsense scan vllm-project/vllm --skills python,cuda --updated-days 14
-```
-
-### 提 PR 前评估仓库
-
-```bash
-# 对比几个目标仓库
-gitsense radar vllm-project/vllm microsoft/qlib MoonshotAI/kimi-cli --skills python,llm
-
-# 从文件读取候选仓库，每行一个 owner/repo
-gitsense radar --targets targets.txt --skills python,agents --out radar.md
-
-# 输出机器可读结果，方便写入 handoff 或后续脚本处理
+# 提 PR 前评估仓库（Markdown 或 JSON 证据）
+gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
 gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
 
-# 把超过两周还 open 的 PR 算作 stale
-gitsense radar stanfordnlp/dspy --stale-days 14
-```
-
-Radar 不是预言机，它更像开源贡献前的尽调表。它不会保证你的 PR 一定被合，但能快速告诉你：这个仓库最近还在合外部 PR 吗？维护者会回复吗？open PR 是健康流动还是长期堆积？open PR 压力和近期合入量是否失衡？这类判断对求职型开源贡献尤其重要。
-
-### 预测某个 open PR 会不会被合
-
-```bash
-# 传入 PR 链接……
-gitsense predict https://github.com/vllm-project/vllm/pull/12345
-
-# ……或者简写的 owner/repo#number 形式
+# 预测某个 open PR 会不会被合（按公开信号打 0-100 分）
 gitsense predict vllm-project/vllm#12345
 ```
 
-`predict` 会根据一个 open PR 的公开信号，给它打一个 0-100 分：review 意见、是否 draft、有没有合并冲突、CI 状态、diff 大小、有没有带测试、以及 PR 开了多久，并把评分背后的依据一并列出来。它是个快速筛查用的启发式，不是保证。
+`radar` 看近期合入速度、维护者响应时间、stale PR 比例、open-to-merged 压力和外部友好度；`predict` 按某个 PR 的 review 意见、draft/冲突/CI 状态、diff 大小、是否带测试和存活时长打分。两者都是快速筛查用的启发式，不是保证。
 
 ## 配置
 
@@ -194,13 +131,6 @@ export OPENAI_BASE_URL=http://localhost:11434/v1
 export OPENAI_API_KEY=ollama
 ```
 
-## 适合谁用
-
-- **想积累开源经历的开发者** — 找高 star 仓库里匹配你技能的 issue，让贡献被看到
-- **针对特定公司的求职者** — `gitsense scan microsoft/autogen --skills python,agents` 找目标公司仓库的 issue
-- **Hackathon 参赛者** — 快速找到几小时能修完的 bug
-- **想找有趣挑战的资深开发者** — 发现整个生态里匹配你专长的问题
-
 ## 常见问题
 
 **这能替代手动看 issue 吗？**
@@ -226,20 +156,6 @@ GitHub 搜索免费（无 token 有限流）。LLM 排序看你用什么模型�
 
 欢迎贡献。如果 GitSense 帮你找到了第一个开源贡献机会，这就是最好的反馈。
 
-## 发布
-
-GitSense 通过 GitHub Actions + PyPI Trusted Publishing 发布，不在仓库里保存 PyPI token。
-
-首次发布前，需要在 PyPI 网页配置 trusted publisher：
-
-- project name: `gitsense-radar`
-- owner: `he-yufeng`
-- repository: `GitSense`
-- workflow: `publish.yml`
-- environment: `pypi`
-
-配置好之后，发布 GitHub Release，或手动运行 `Publish` workflow。workflow 会先构建包、运行 `twine check`，再把校验通过的产物上传到 PyPI。
-
 ## 相关项目
 
 如果 GitSense 帮你找到了值得做的开源活，这几个我做的工具也许你也用得上：
@@ -253,13 +169,3 @@ GitSense 通过 GitHub Actions + PyPI Trusted Publishing 发布，不在仓库�
 ## 许可证
 
 [MIT](LICENSE)
-
----
-
-<div align="center">
-
-**如果 GitSense 帮你找到了好 issue，给个 star！**
-
-[报告问题](https://github.com/he-yufeng/GitSense/issues) · [功能建议](https://github.com/he-yufeng/GitSense/issues)
-
-</div>

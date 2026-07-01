@@ -30,22 +30,11 @@ pip install gitsense-radar
 ```
 
 ```bash
-# Find issues matching your skills
+# Find open issues that match your skills, ranked by an LLM
 gitsense find --skills python,llm,cuda
 
-# Target repos with 500+ stars
-gitsense find --skills rust,wasm --stars 500
-
-# Filter by label
-gitsense find --skills python --labels bug
-
-# Prefer recently active, low-noise issues
-gitsense find --skills python,llm --updated-days 30 --max-comments 10
-
-# Scan a specific repo
+# Scan one repo, or score repos before you invest a weekend
 gitsense scan vllm-project/vllm --skills python,cuda
-
-# Score repos before spending a weekend on a PR
 gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
 ```
 
@@ -101,76 +90,24 @@ Ranking with gpt-4o-mini...
 
 ## Usage
 
-### Find across all of GitHub
-
 ```bash
-# Basic — search by skills
-gitsense find --skills python,fastapi,postgres
+# Find issues across GitHub, ranked by skill match
+gitsense find --skills python,fastapi --stars 5000 --labels bug
+gitsense find --skills python --no-llm                              # skip LLM ranking (faster)
+gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 
-# High-star repos only
-gitsense find --skills go,kubernetes --stars 5000
+# Scan one repo's open, unassigned issues
+gitsense scan pytorch/pytorch --skills python --updated-days 14
 
-# Bug fixes only
-gitsense find --skills typescript,react --labels bug
-
-# Skip LLM ranking (faster, just raw results)
-gitsense find --skills python --no-llm
-
-# Use a specific model
-gitsense find --skills python --model anthropic/claude-sonnet-4
-
-# Show more results
-gitsense find --skills python --limit 15
-
-# Focus on fresh issues and avoid long unresolved debates
-gitsense find --skills python,llm --updated-days 30 --max-comments 10
-
-# Include assigned issues when you are intentionally scanning a repo backlog
-gitsense find --skills python --include-assigned
-```
-
-### Scan a specific repo
-
-```bash
-# List all open unassigned issues
-gitsense scan pytorch/pytorch
-
-# Filter by your skills
-gitsense scan HKUDS/LightRAG --skills python,rag
-
-# Scan only recently active issues
-gitsense scan vllm-project/vllm --skills python,cuda --updated-days 14
-```
-
-### Score repos before opening a PR
-
-```bash
-# Compare a few target repos
-gitsense radar vllm-project/vllm microsoft/qlib MoonshotAI/kimi-cli --skills python,llm
-
-# Use a file, one owner/repo per line
-gitsense radar --targets targets.txt --skills python,agents --out radar.md
-
-# Write machine-readable evidence for another script or handoff
+# Score repos before investing a weekend (Markdown or JSON evidence)
+gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
 gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
 
-# Treat PRs older than two weeks as stale
-gitsense radar stanfordnlp/dspy --stale-days 14
-```
-
-Radar is not a prediction oracle. It is a fast triage pass for contributors who care about ROI: recent merge velocity, maintainer response time, stale PR ratio, open-to-merged pressure, outsider-friendliness, and whether the repo matches your skill stack.
-
-### Predict whether an open PR will merge
-
-```bash
-# Pass a PR URL...
-gitsense predict https://github.com/vllm-project/vllm/pull/12345
-
-# ...or the short owner/repo#number form
+# Predict whether a specific open PR will merge (0–100 from public signals)
 gitsense predict vllm-project/vllm#12345
 ```
 
-`predict` scores a single open PR out of 100 from its public signals — review decision, draft flag, merge conflicts, CI status, diff size, whether it touches tests, and age — and shows the notes behind the score. It is a triage heuristic, not a guarantee.
+`radar` weighs recent merge velocity, maintainer response time, stale-PR ratio, open-to-merged pressure, and outsider-friendliness; `predict` scores one PR from its review decision, draft/conflict/CI status, diff size, tests, and age. Both are triage heuristics, not guarantees.
 
 ## Configuration
 
@@ -198,13 +135,6 @@ export OPENAI_BASE_URL=http://localhost:11434/v1
 export OPENAI_API_KEY=ollama
 ```
 
-## Who Is This For?
-
-- **Developers building their open source resume** — Find high-impact issues in popular repos that match your skills, so your contributions actually get noticed.
-- **Job seekers targeting specific companies** — `gitsense scan microsoft/autogen --skills python,agents` to find issues in repos you want on your resume.
-- **Hackathon participants** — Quickly find bugs you can fix in a few hours.
-- **Experienced developers looking for side projects** — Discover interesting challenges across the ecosystem that match your expertise.
-
 ## FAQ
 
 **Does this replace looking at issues manually?**
@@ -230,20 +160,6 @@ GitHub search is free (rate-limited without a token). LLM ranking costs whatever
 
 Contributions welcome. If GitSense helped you find your first open source contribution, that's the best feedback possible.
 
-## Release
-
-Releases are published through GitHub Actions with PyPI Trusted Publishing. No PyPI token is stored in the repository.
-
-Before publishing for the first time, configure a PyPI trusted publisher for:
-
-- project name: `gitsense-radar`
-- owner: `he-yufeng`
-- repository: `GitSense`
-- workflow: `publish.yml`
-- environment: `pypi`
-
-Then publish a GitHub release, or run the `Publish` workflow manually. The workflow builds the package, runs `twine check`, and uploads the verified artifacts to PyPI.
-
 ## Related Projects
 
 If GitSense pointed you at open source worth doing, here are a few more of my projects:
@@ -257,13 +173,3 @@ If GitSense pointed you at open source worth doing, here are a few more of my pr
 ## License
 
 [MIT](LICENSE)
-
----
-
-<div align="center">
-
-**If GitSense helped you find a good issue to work on, give it a star!**
-
-[Report a Bug](https://github.com/he-yufeng/GitSense/issues) · [Request a Feature](https://github.com/he-yufeng/GitSense/issues)
-
-</div>
