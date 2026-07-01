@@ -4,6 +4,7 @@
 
 输入你的技术栈 → 全站搜索你能修的 issue → 按匹配度排序 → 再用 PR 历史评估仓库的 review / merge 友好度。
 
+[![PyPI](https://img.shields.io/pypi/v/gitsense-radar.svg)](https://pypi.org/project/gitsense-radar/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/he-yufeng/GitSense/actions/workflows/ci.yml/badge.svg)](https://github.com/he-yufeng/GitSense/actions)
@@ -154,6 +155,18 @@ gitsense radar stanfordnlp/dspy --stale-days 14
 ```
 
 Radar 不是预言机，它更像开源贡献前的尽调表。它不会保证你的 PR 一定被合，但能快速告诉你：这个仓库最近还在合外部 PR 吗？维护者会回复吗？open PR 是健康流动还是长期堆积？open PR 压力和近期合入量是否失衡？这类判断对求职型开源贡献尤其重要。
+
+### 预测某个 open PR 会不会被合
+
+```bash
+# 传入 PR 链接……
+gitsense predict https://github.com/vllm-project/vllm/pull/12345
+
+# ……或者简写的 owner/repo#number 形式
+gitsense predict vllm-project/vllm#12345
+```
+
+`predict` 会根据一个 open PR 的公开信号，给它打一个 0-100 分：review 意见、是否 draft、有没有合并冲突、CI 状态、diff 大小、有没有带测试、以及 PR 开了多久，并把评分背后的依据一并列出来。它是个快速筛查用的启发式，不是保证。
 
 ## 配置
 
