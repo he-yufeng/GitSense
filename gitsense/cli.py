@@ -38,9 +38,15 @@ def main():
 )
 @click.option("--max-comments", type=int, help="Skip noisy issues with more than this many comments")
 @click.option("--include-assigned", is_flag=True, help="Include issues that already have assignees")
+@click.option("--include-linked", is_flag=True, help="Include issues that already have linked PRs")
+@click.option(
+    "--check-claims",
+    is_flag=True,
+    help="Also scan comments for people claiming the issue (one API call per issue)",
+)
 def find(skills: str, stars: int, labels: str, model: str, api_key: str | None,
          no_llm: bool, limit: int, updated_days: int, max_comments: int | None,
-         include_assigned: bool):
+         include_assigned: bool, include_linked: bool, check_claims: bool):
     """Find open issues that match your skills.
 
     \b
@@ -67,6 +73,8 @@ def find(skills: str, stars: int, labels: str, model: str, api_key: str | None,
             updated_days=updated_days,
             max_comments=max_comments,
             include_assigned=include_assigned,
+            include_linked=include_linked,
+            check_claims=check_claims,
         )
 
     if not candidates:
@@ -111,6 +119,11 @@ def _print_results(results: list[dict], skills: list[str]) -> None:
         console.print(f"     [dim]{r['url']}[/dim]")
         if r.get("labels"):
             console.print(f"     Labels: {', '.join(r['labels'][:4])}")
+        claim = r.get("claim")
+        if claim:
+            console.print(
+                f"     [yellow]⚠ possibly claimed by @{claim['user']} on {claim['date']}[/yellow]"
+            )
         if r.get("reason"):
             console.print(f"     [italic]{r['reason']}[/italic]")
         if r.get("approach"):

@@ -81,3 +81,13 @@ def test_fetch_candidates_filters_comment_heavy_issues(monkeypatch):
 
     assert [candidate["title"] for candidate in candidates] == ["quiet bug"]
     assert candidates[0]["updated_at"] == "2026-05-12"
+
+
+def test_linked_pr_issues_filtered_by_default():
+    queries = build_search_queries(["python"], min_stars=100, labels=[])
+    assert all("-linked:pr" in q for q in queries)
+
+
+def test_linked_pr_issues_included_on_opt_in():
+    queries = build_search_queries(["python"], min_stars=100, labels=[], include_linked=True)
+    assert all("-linked:pr" not in q for q in queries)

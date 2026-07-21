@@ -9,7 +9,39 @@ from typing import Any
 
 from openai import OpenAI
 
-from gitsense.github_client import search_issues
+from gitsense.github_client import get_issue_comments, search_issues
+
+# comment phrases that read like someone holding the issue, EN and CN.
+# GitHub has no "claimed" state beyond assignment, so people hold issues in
+# comments; treat only recent claims as real, since an old "I'll take this"
+# that went nowhere should not scare anyone off.
+_CLAIM_PHRASES = (
+    "i'll work on this", "i will work on this", "i'd like to work on this",
+    "i wanna work on this", "let me work on this", "i can take this",
+    "i'll take this", "let me take this", "taking this", "working on this",
+    "i'm on it", "assign me", "assign this to me",
+    "我来", "我认领", "认领这个", "我来做", "交给我",
+)
+
+
+def detect_claims(comments: list[dict], *, days: int = 60) -> dict[str, str] | None:
+    """Spot a recent comment that reads like someone claiming the issue."""
+    if not comments:
+        return None
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    for comment in comments:
+        created = (comment.get("created_at") or "")[:10]
+        if created and created < cutoff:
+            continue
+        body = (comment.get("body") or "").lower()
+        for phrase in _CLAIM_PHRASES:
+            if phrase in body:
+                return {
+                    "user": (comment.get("user") or {}).get("login", "someone"),
+                    "date": created,
+                    "phrase": phrase,
+                }
+    return None
 
 
 def build_search_queries(
@@ -18,6 +50,7 @@ def build_search_queries(
     labels: list[str],
     updated_days: int | None = 180,
     include_assigned: bool = False,
+    include_linked: bool = False,
 ) -> list[str]:
     """Build GitHub search queries from user skills and filters."""
     if not skills:
@@ -26,6 +59,10 @@ def build_search_queries(
     filters = ["is:issue", "is:open", "archived:false"]
     if not include_assigned:
         filters.append("no:assignee")
+    if not include_linked:
+        # an unassigned issue with a PR already linked is usually taken in
+        # practice, even if nobody was formally assigned
+        filters.append("-linked:pr")
     if min_stars > 0:
         filters.append(f"stars:>={min_stars}")
     if updated_days is not None:
@@ -55,6 +92,9 @@ def fetch_candidates(
     updated_days: int | None = 180,
     max_comments: int | None = None,
     include_assigned: bool = False,
+    include_linked: bool = False,
+    check_claims: bool = False,
+    claim_days: int = 60,
 ) -> list[dict[str, Any]]:
     """Fetch candidate issues from GitHub."""
     queries = build_search_queries(
@@ -63,6 +103,7 @@ def fetch_candidates(
         labels or [],
         updated_days=updated_days,
         include_assigned=include_assigned,
+        include_linked=include_linked,
     )
 
     seen_urls = set()
@@ -86,6 +127,18 @@ def fetch_candidates(
             repo_url = issue.get("repository_url", "")
             repo_name = "/".join(repo_url.split("/")[-2:]) if repo_url else ""
 
+            claim = None
+            if check_claims and comments > 0 and repo_name:
+                owner, repo = repo_name.split("/", 1)
+                try:
+                    number = int(url.rstrip("/").rsplit("/", 1)[-1])
+                    claim = detect_claims(
+                        get_issue_comments(owner, repo, number), days=claim_days
+                    )
+                except Exception:
+                    # claim check is best-effort; never block a result on it
+                    claim = None
+
             candidates.append({
                 "title": issue.get("title", ""),
                 "url": url,
@@ -95,6 +148,7 @@ def fetch_candidates(
                 "created_at": issue.get("created_at", "")[:10],
                 "updated_at": issue.get("updated_at", "")[:10],
                 "body": (issue.get("body") or "")[:1000],
+                "claim": claim,
             })
 
     return candidates[:max_results]
