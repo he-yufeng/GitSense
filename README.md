@@ -96,6 +96,10 @@ gitsense find --skills python,fastapi --stars 5000 --labels bug
 gitsense find --skills python --no-llm                              # skip LLM ranking (faster)
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 
+# Or let GitSense read your public repos and infer your skills for you
+gitsense profile torvalds
+gitsense find --profile torvalds
+
 # Scan one repo's open, unassigned issues
 gitsense scan pytorch/pytorch --skills python --updated-days 14
 
@@ -148,11 +152,10 @@ GitHub search is free (rate-limited without a token). LLM ranking costs whatever
 
 ## Roadmap
 
-**Shipped:** repo radar (gauge maintainer responsiveness and merge-friendliness before you invest time) and PR success prediction (estimate merge probability for a specific draft).
+**Shipped:** repo radar (gauge maintainer responsiveness and merge-friendliness before you invest time), PR success prediction (estimate merge probability for a specific draft), and profile mode (infer your skills from your public repos, so the issue search seeds itself).
 
 **Planned:**
 
-- **Profile mode** — read your GitHub profile to infer languages and strengths, so the issue search is seeded without you spelling out what you know.
 - **Watch mode** — a daily/weekly digest of new issues that match your filters, so good first issues come to you instead of needing a manual re-run.
 - **Difficulty calibration** — check the radar's difficulty estimate against issues you actually closed, so the score gets more honest the more you use it.
 

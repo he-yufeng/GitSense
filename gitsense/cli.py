@@ -23,7 +23,8 @@ def main():
 
 
 @main.command()
-@click.option("--skills", "-s", required=True, help="Your skills, comma-separated (e.g. python,cuda,llm)")
+@click.option("--skills", "-s", default="", help="Your skills, comma-separated (e.g. python,cuda,llm)")
+@click.option("--profile", "profile_user", default="", help="Infer skills from a GitHub username's public repos")
 @click.option("--stars", default=100, help="Minimum repo stars (default: 100)")
 @click.option("--labels", "-l", default="", help="Filter by labels, comma-separated (e.g. bug,good first issue)")
 @click.option("--model", "-m", default="gpt-4o-mini", help="LLM model for ranking")
@@ -44,7 +45,7 @@ def main():
     is_flag=True,
     help="Also scan comments for people claiming the issue (one API call per issue)",
 )
-def find(skills: str, stars: int, labels: str, model: str, api_key: str | None,
+def find(skills: str, profile_user: str, stars: int, labels: str, model: str, api_key: str | None,
          no_llm: bool, limit: int, updated_days: int, max_comments: int | None,
          include_assigned: bool, include_linked: bool, check_claims: bool):
     """Find open issues that match your skills.
@@ -52,6 +53,7 @@ def find(skills: str, stars: int, labels: str, model: str, api_key: str | None,
     \b
     Examples:
         gitsense find --skills python,llm,cuda
+        gitsense find --profile torvalds
         gitsense find --skills rust,wasm --stars 500
         gitsense find --skills python --labels bug --no-llm
         gitsense find --skills python,llm --updated-days 30 --max-comments 10
@@ -59,6 +61,25 @@ def find(skills: str, stars: int, labels: str, model: str, api_key: str | None,
     from gitsense.finder import fetch_candidates, rank_with_llm
 
     skill_list = [s.strip() for s in skills.split(",") if s.strip()]
+    if profile_user:
+        from gitsense.profile import infer_skills
+
+        with console.status(f"[bold blue]Inferring skills from @{profile_user}'s repos..."):
+            profile = infer_skills(profile_user)
+        if not profile["top"]:
+            raise click.UsageError(
+                f"could not infer any skills from @{profile_user}: "
+                "no non-fork public repos with a primary language"
+            )
+        inferred = [lang for lang in profile["top"] if lang not in skill_list]
+        skill_list.extend(inferred)
+        console.print(
+            f"[dim]Inferred from {profile['repo_count']} repos: "
+            f"{', '.join(profile['top'][:6])}[/dim]"
+        )
+    if not skill_list:
+        raise click.UsageError("pass --skills, or --profile to infer them from a GitHub account")
+
     label_list = [lab.strip() for lab in labels.split(",") if lab.strip()] if labels else []
     if updated_days <= 0:
         raise click.UsageError("--updated-days must be greater than zero")
@@ -346,3 +367,37 @@ def predict(pr_ref: str):
     console.print(
         "\n[dim]Heuristic from public PR signals. Treat it as triage, not a guarantee.[/dim]"
     )
+
+
+@main.command()
+@click.argument("username")
+def profile(username: str):
+    """Infer a skill profile from a GitHub user's public repos.
+
+    \b
+    Example:
+        gitsense profile torvalds
+    """
+    from gitsense.profile import infer_skills
+
+    with console.status(f"[bold blue]Reading @{username}'s public repos..."):
+        result = infer_skills(username)
+
+    if not result["top"]:
+        console.print(
+            f"[yellow]No skills inferred for @{username}: "
+            "no non-fork public repos with a primary language.[/yellow]"
+        )
+        return
+
+    lines = [f"  {lang:<16} {weight:.2f}" for lang, weight in result["languages"]]
+    body = (
+        f"[bold]Inferred from {result['repo_count']} repos[/bold]"
+        + (f" (skipped {result['skipped_forks']} forks)" if result["skipped_forks"] else "")
+        + "\n\n" + "\n".join(lines)
+        + "\n\n[dim]Weights = 1 + log10(stars+1), capped at 1000 stars. "
+        "Forks and repos without a primary language are skipped.[/dim]"
+    )
+    console.print(Panel(body, title=f"[bold cyan]Skill profile: @{username}[/bold cyan]",
+                        border_style="cyan"))
+    console.print(f"\n[dim]Use it directly: gitsense find --profile {username}[/dim]")

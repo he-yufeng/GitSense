@@ -92,6 +92,10 @@ gitsense find --skills python,fastapi --stars 5000 --labels bug
 gitsense find --skills python --no-llm                              # 跳过 LLM 排序（更快）
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 
+# 也可以让它读你的公开仓库，自动推断你的技能
+gitsense profile torvalds
+gitsense find --profile torvalds
+
 # 扫描单个仓库里未认领的 open issue
 gitsense scan pytorch/pytorch --skills python --updated-days 14
 
@@ -144,11 +148,10 @@ GitHub 搜索免费（无 token 有限流）。LLM 排序看你用什么模型�
 
 ## 路线图
 
-**已完成**：Repo Radar（提 PR 前评估维护者活跃度和仓库合入友好度）、PR 成功率预测（针对某个 draft PR 估计合入概率）。
+**已完成**：Repo Radar（提 PR 前评估维护者活跃度和仓库合入友好度）、PR 成功率预测（针对某个 draft PR 估计合入概率）、个人主页模式（读你的公开仓库推断技能，issue 搜索不用手动说明会什么）。
 
 **规划中**：
 
-- **个人主页模式**：读你的 GitHub profile 推断语言和强项，让 issue 搜索不必你手动说明会什么就能起步。
 - **订阅模式**：每天/每周推送匹配你筛选条件的新 issue，让合适的 good first issue 主动找上门，而不用手动重跑。
 - **难度校准**：拿 Radar 给出的难度估计和你真正关掉的 issue 对比，用得越久、分数越准。
 

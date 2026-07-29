@@ -129,3 +129,15 @@ def get_commit_status_state(owner: str, repo: str, ref: str) -> str:
     )
     resp.raise_for_status()
     return resp.json().get("state", "")
+
+
+def fetch_user_repos(username: str, per_page: int = 100) -> list[dict[str, Any]]:
+    """List a user's public repos, most recently pushed first."""
+    resp = httpx.get(
+        f"{GITHUB_API}/users/{username}/repos",
+        params={"per_page": per_page, "sort": "pushed", "type": "owner"},
+        headers=_get_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
