@@ -19,7 +19,6 @@ console = Console()
 @click.version_option(__version__, prog_name="gitsense")
 def main():
     """GitSense — find contribution targets and check repo fit."""
-    pass
 
 
 @main.command()
@@ -177,9 +176,9 @@ def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
             raise click.UsageError("--updated-days must be greater than zero")
         if max_comments is not None and max_comments < 0:
             raise click.UsageError("--max-comments cannot be negative")
-        from datetime import date, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        since = date.today() - timedelta(days=updated_days)
+        since = datetime.now(timezone.utc).date() - timedelta(days=updated_days)
         q = f"repo:{repo} is:issue is:open no:assignee updated:>={since.isoformat()}"
         if skill_list:
             q += f" {' OR '.join(skill_list[:3])}"

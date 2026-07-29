@@ -49,16 +49,16 @@ def test_files_touch_tests():
 
 
 def _score(**overrides) -> int:
-    signals = dict(
-        review_decision=None,
-        is_draft=False,
-        mergeable_state="CLEAN",
-        ci_failing=False,
-        changed_files=2,
-        additions=40,
-        touches_tests=True,
-        age_days=3,
-    )
+    signals = {
+        "review_decision": None,
+        "is_draft": False,
+        "mergeable_state": "CLEAN",
+        "ci_failing": False,
+        "changed_files": 2,
+        "additions": 40,
+        "touches_tests": True,
+        "age_days": 3,
+    }
     signals.update(overrides)
     score, _ = score_pr(**signals)
     return score

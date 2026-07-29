@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict
-from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from statistics import median
 from typing import Any
+
+import httpx
 
 from gitsense.github_client import (
     get_issue_comments,
@@ -78,8 +79,8 @@ def analyze_repo(
 
     owner, name = parse_repo_name(repo)
     full_name = f"{owner}/{name}"
-    since = date.today() - timedelta(days=days)
-    stale_before = date.today() - timedelta(days=stale_days)
+    since = datetime.now(timezone.utc).date() - timedelta(days=days)
+    stale_before = datetime.now(timezone.utc).date() - timedelta(days=stale_days)
 
     repo_info = get_repo_info(owner, name)
     languages = get_repo_languages(owner, name)
@@ -330,8 +331,8 @@ def _sample_maintainer_response_days(
         created_at = item.get("created_at")
         try:
             comments = get_issue_comments(owner, repo, number)
-        except Exception:
-            continue
+        except httpx.HTTPError:
+            comments = []
         maintainer_comments = [
             comment
             for comment in comments

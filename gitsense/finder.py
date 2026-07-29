@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import httpx
 from openai import OpenAI
 
 from gitsense.github_client import get_issue_comments, search_issues
@@ -28,7 +29,7 @@ def detect_claims(comments: list[dict], *, days: int = 60) -> dict[str, str] | N
     """Spot a recent comment that reads like someone claiming the issue."""
     if not comments:
         return None
-    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
     for comment in comments:
         created = (comment.get("created_at") or "")[:10]
         if created and created < cutoff:
@@ -68,7 +69,7 @@ def build_search_queries(
     if updated_days is not None:
         if updated_days <= 0:
             raise ValueError(f"updated_days must be greater than zero, got {updated_days}")
-        since = date.today() - timedelta(days=updated_days)
+        since = datetime.now(timezone.utc).date() - timedelta(days=updated_days)
         filters.append(f"updated:>={since.isoformat()}")
     if labels:
         filters.extend(f'label:"{lab}"' for lab in labels)
@@ -112,8 +113,8 @@ def fetch_candidates(
     for query in queries:
         try:
             issues = search_issues(query, per_page=min(max_results, 20))
-        except Exception:
-            continue
+        except httpx.HTTPError:
+            issues = []
 
         for issue in issues:
             url = issue.get("html_url", "")
@@ -135,7 +136,7 @@ def fetch_candidates(
                     claim = detect_claims(
                         get_issue_comments(owner, repo, number), days=claim_days
                     )
-                except Exception:
+                except httpx.HTTPError:
                     # claim check is best-effort; never block a result on it
                     claim = None
 

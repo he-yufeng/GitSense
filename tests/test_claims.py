@@ -1,6 +1,6 @@
 """Tests for claim detection on issue comments."""
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 from gitsense.finder import detect_claims, fetch_candidates
 
@@ -9,7 +9,7 @@ def _comment(body, user="someone", created=None):
     return {
         "body": body,
         "user": {"login": user},
-        "created_at": created or date.today().isoformat(),
+        "created_at": created or datetime.now(timezone.utc).date().isoformat(),
     }
 
 
@@ -30,7 +30,7 @@ def test_ordinary_comment_is_not_a_claim():
 
 
 def test_stale_claim_is_ignored():
-    old = (date.today() - timedelta(days=120)).isoformat()
+    old = (datetime.now(timezone.utc).date() - timedelta(days=120)).isoformat()
     assert detect_claims([_comment("I'll take this", created=old)]) is None
     # 120 days back still counts within a 180-day window
     claim = detect_claims([_comment("I'll take this", created=old)], days=180)
