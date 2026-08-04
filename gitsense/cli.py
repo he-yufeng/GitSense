@@ -370,6 +370,80 @@ def predict(pr_ref: str):
 
 @main.command()
 @click.argument("username")
+@click.option("--limit", "-n", default=30, show_default=True, help="Max open PRs to triage")
+@click.option("--stale-days", default=14, show_default=True, help="Days without review before pinging")
+@click.option("--shallow", is_flag=True, help="Skip per-PR API calls (fast, no scores)")
+@click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
+def triage(username: str, limit: int, stale_days: int, shallow: bool, fmt: str):
+    """Triage every open PR you've authored, worst-first.
+
+    \b
+    Examples:
+        gitsense triage octocat
+        gitsense triage octocat --stale-days 7 --format json
+        gitsense triage octocat --shallow          # one search call only
+    """
+    from gitsense.triage import build_row, enrich_row, fetch_authored_prs, sort_rows
+
+    if limit <= 0:
+        raise click.UsageError("--limit must be greater than zero")
+    if stale_days <= 0:
+        raise click.UsageError("--stale-days must be greater than zero")
+
+    with console.status(f"[bold blue]Finding @{username}'s open PRs..."):
+        items = fetch_authored_prs(username, limit)[:limit]
+
+    if not items:
+        console.print(f"[dim]No open PRs found for @{username}.[/dim]")
+        return
+
+    rows = []
+    for item in items:
+        if shallow:
+            rows.append(build_row(item, stale_days=stale_days))
+        else:
+            repo = (item.get("repository_url") or "").rsplit("/", 2)[-1]
+            with console.status(f"[bold blue]Checking {repo}#{item.get('number')}..."):
+                rows.append(enrich_row(item, stale_days=stale_days))
+    rows = sort_rows(rows)
+
+    if fmt == "json":
+        console.print_json(json.dumps([asdict(r) for r in rows]))
+        return
+
+    t = Table(title=f"Open PR triage: @{username}", show_lines=False)
+    t.add_column("PR", style="bold", max_width=30)
+    t.add_column("Score", justify="right", width=5)
+    t.add_column("Action", width=30)
+    t.add_column("Age", justify="right", width=6)
+    t.add_column("Idle", justify="right", width=6)
+    t.add_column("Title", max_width=44)
+
+    for r in rows:
+        score_color = "green" if (r.score or 0) >= 70 else "yellow" if (r.score or 0) >= 45 else "red"
+        score_text = f"[{score_color}]{r.score}[/{score_color}]" if r.score is not None else "[dim]-[/dim]"
+        action = r.action
+        if action in ("fix CI", "address the review", "rebase to clear conflicts"):
+            action = f"[red]{action}[/red]"
+        elif action.startswith("no review"):
+            action = f"[yellow]{action}[/yellow]"
+        t.add_row(
+            f"{r.repo}#{r.number}",
+            score_text,
+            action,
+            f"{int(r.age_days)}d",
+            f"{int(r.updated_days)}d",
+            r.title[:42],
+        )
+    console.print(t)
+    console.print(
+        "\n[dim]Scores reuse the predict heuristic. "
+        "Idle = days since last activity on the PR.[/dim]"
+    )
+
+
+@main.command()
+@click.argument("username")
 def profile(username: str):
     """Infer a skill profile from a GitHub user's public repos.
 

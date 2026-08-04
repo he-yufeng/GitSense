@@ -109,9 +109,13 @@ gitsense radar --targets targets.txt --skills python,agents --format json --out 
 
 # Predict whether a specific open PR will merge (0–100 from public signals)
 gitsense predict vllm-project/vllm#12345
+
+# Triage every open PR you've authored, worst-first (one next action each)
+gitsense triage octocat
+gitsense triage octocat --shallow            # one search call, no per-PR lookups
 ```
 
-`radar` weighs recent merge velocity, maintainer response time, stale-PR ratio, open-to-merged pressure, and outsider-friendliness; `predict` scores one PR from its review decision, draft/conflict/CI status, diff size, tests, and age. Both are triage heuristics, not guarantees.
+`radar` weighs recent merge velocity, maintainer response time, stale-PR ratio, open-to-merged pressure, and outsider-friendliness; `predict` scores one PR from its review decision, draft/conflict/CI status, diff size, tests, and age. `triage` reuses the same scoring across all your open PRs and collapses each into a next action (address the review, fix CI, rebase, ping). All are triage heuristics, not guarantees.
 
 ## Configuration
 
@@ -152,7 +156,7 @@ GitHub search is free (rate-limited without a token). LLM ranking costs whatever
 
 ## Roadmap
 
-**Shipped:** repo radar (gauge maintainer responsiveness and merge-friendliness before you invest time), PR success prediction (estimate merge probability for a specific draft), and profile mode (infer your skills from your public repos, so the issue search seeds itself).
+**Shipped:** repo radar (gauge maintainer responsiveness and merge-friendliness before you invest time), PR success prediction (estimate merge probability for a specific draft), profile mode (infer your skills from your public repos, so the issue search seeds itself), and PR triage (one next action for every open PR you've authored, worst-first).
 
 **Planned:**
 
