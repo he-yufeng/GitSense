@@ -109,6 +109,7 @@ gitsense predict vllm-project/vllm#12345
 # 盘点你在全站的所有 open PR，最该处理的排最前，每条给出下一步动作
 gitsense triage octocat
 gitsense triage octocat --shallow            # 只调一次搜索 API，不逐条查详情
+gitsense triage octocat --since-last         # 只看和上次盘点相比变了什么
 ```
 
 `radar` 看近期合入速度、维护者响应时间、stale PR 比例、open-to-merged 压力和外部友好度；`predict` 按某个 PR 的 review 意见、draft/冲突/CI 状态、diff 大小、是否带测试和存活时长打分；`triage` 把同一套打分套到你所有 open PR 上，每条收敛成一个下一步动作（回 review、修 CI、rebase、催合）。都是快速筛查用的启发式，不是保证。

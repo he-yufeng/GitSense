@@ -1,4 +1,12 @@
-from gitsense.triage import build_row, next_action, sort_rows
+from gitsense.triage import (
+    TriageRow,
+    build_row,
+    diff_snapshots,
+    load_snapshot,
+    next_action,
+    save_snapshot,
+    sort_rows,
+)
 
 
 def _action(**overrides) -> str:
@@ -99,3 +107,47 @@ def test_sort_rows_worst_first_unscored_last():
     rows = sort_rows([good, shallow, bad])
     assert [r.number for r in rows] == [2, 1, 3]
     assert rows[0].score is not None and rows[0].score < rows[1].score
+
+
+def _row(repo: str, number: int, action: str) -> TriageRow:
+    return TriageRow(repo=repo, number=number, title="t", url="", action=action)
+
+
+def test_diff_snapshots_buckets_new_changed_gone():
+    old = [
+        {"repo": "a/b", "number": 1, "action": "fix CI", "title": "x"},
+        {"repo": "a/b", "number": 2, "action": "waiting on reviewer", "title": "y"},
+        {"repo": "a/b", "number": 3, "action": "fix CI", "title": "z"},
+    ]
+    new_rows = [
+        _row("a/b", 2, "waiting on reviewer"),  # unchanged
+        _row("a/b", 3, "approved & green — nudge for merge"),  # changed
+        _row("c/d", 9, "fix CI"),  # new
+    ]
+    delta = diff_snapshots(old, new_rows)
+    assert [(e["repo"], e["number"]) for e in delta["new"]] == [("c/d", 9)]
+    assert delta["changed"][0]["was"] == "fix CI"
+    assert delta["changed"][0]["now"].startswith("approved")
+    assert [(e["repo"], e["number"]) for e in delta["gone"]] == [("a/b", 1)]
+
+
+def test_diff_snapshots_empty_old_is_all_new():
+    delta = diff_snapshots([], [_row("a/b", 1, "fix CI")])
+    assert len(delta["new"]) == 1 and not delta["changed"] and not delta["gone"]
+
+
+def test_snapshot_round_trip(tmp_path):
+    path = str(tmp_path / ".gitsense" / "triage-last.json")
+    rows = [_row("a/b", 1, "fix CI"), _row("c/d", 2, "waiting on reviewer")]
+    save_snapshot(rows, path)
+    loaded = load_snapshot(path)
+    assert [r["number"] for r in loaded] == [1, 2]
+    assert diff_snapshots(loaded, rows) == {"new": [], "changed": [], "gone": []}
+
+
+def test_load_snapshot_missing_or_corrupt(tmp_path):
+    missing = str(tmp_path / "nope.json")
+    assert load_snapshot(missing) == []
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+    assert load_snapshot(str(bad)) == []

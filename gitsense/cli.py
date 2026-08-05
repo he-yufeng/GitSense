@@ -373,8 +373,9 @@ def predict(pr_ref: str):
 @click.option("--limit", "-n", default=30, show_default=True, help="Max open PRs to triage")
 @click.option("--stale-days", default=14, show_default=True, help="Days without review before pinging")
 @click.option("--shallow", is_flag=True, help="Skip per-PR API calls (fast, no scores)")
+@click.option("--since-last", is_flag=True, help="Show only what changed since the last triage snapshot")
 @click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
-def triage(username: str, limit: int, stale_days: int, shallow: bool, fmt: str):
+def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last: bool, fmt: str):
     """Triage every open PR you've authored, worst-first.
 
     \b
@@ -382,8 +383,18 @@ def triage(username: str, limit: int, stale_days: int, shallow: bool, fmt: str):
         gitsense triage octocat
         gitsense triage octocat --stale-days 7 --format json
         gitsense triage octocat --shallow          # one search call only
+        gitsense triage octocat --since-last       # delta vs your last run
     """
-    from gitsense.triage import build_row, enrich_row, fetch_authored_prs, sort_rows
+    from gitsense.triage import (
+        build_row,
+        diff_snapshots,
+        enrich_row,
+        fetch_authored_prs,
+        load_snapshot,
+        save_snapshot,
+        snapshot_path,
+        sort_rows,
+    )
 
     if limit <= 0:
         raise click.UsageError("--limit must be greater than zero")
@@ -406,6 +417,27 @@ def triage(username: str, limit: int, stale_days: int, shallow: bool, fmt: str):
             with console.status(f"[bold blue]Checking {repo}#{item.get('number')}..."):
                 rows.append(enrich_row(item, stale_days=stale_days))
     rows = sort_rows(rows)
+
+    if since_last:
+        snap = snapshot_path()
+        delta = diff_snapshots(load_snapshot(snap), rows)
+        save_snapshot(rows, snap)
+        if fmt == "json":
+            console.print_json(json.dumps(delta))
+            return
+        unchanged = len(rows) - len(delta["new"]) - len(delta["changed"])
+        console.print(f"[bold]Triage delta:[/bold] {len(delta['new'])} new, "
+                      f"{len(delta['changed'])} changed, {len(delta['gone'])} gone, {unchanged} unchanged")
+        for entry in delta["new"]:
+            console.print(f"  [green]NEW[/green]     {entry['repo']}#{entry['number']} — {entry['action']}")
+        for entry in delta["changed"]:
+            console.print(
+                f"  [yellow]CHANGED[/yellow] {entry['repo']}#{entry['number']} — "
+                f"{entry['was']} → {entry['now']}"
+            )
+        for entry in delta["gone"]:
+            console.print(f"  [dim]GONE     {entry['repo']}#{entry['number']} — was: {entry['was']}[/dim]")
+        return
 
     if fmt == "json":
         console.print_json(json.dumps([asdict(r) for r in rows]))

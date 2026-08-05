@@ -182,3 +182,91 @@ def enrich_row(
         touches_tests=files_touch_tests(files),
         stale_days=stale_days,
     )
+
+
+# ---------------------------------------------------------------------------
+# --since-last: snapshot diffing
+# ---------------------------------------------------------------------------
+
+
+def snapshot_path(root: str = ".") -> str:
+    """Where the last triage snapshot lives for a working directory."""
+    import os
+
+    return os.path.join(root, ".gitsense", "triage-last.json")
+
+
+def load_snapshot(path: str) -> list[dict[str, Any]]:
+    """Load the previous snapshot, tolerating a missing or corrupt file."""
+    import json
+    import os
+
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def save_snapshot(rows: list[TriageRow], path: str) -> None:
+    """Persist today's rows so the next run can diff against them."""
+    import json
+    import os
+    from dataclasses import asdict as _asdict
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump([_asdict(r) for r in rows], fh, indent=1)
+
+
+def diff_snapshots(
+    old: list[dict[str, Any]], new_rows: list[TriageRow]
+) -> dict[str, list[dict[str, Any]]]:
+    """Diff a previous snapshot against today's rows.
+
+    Returns ``{"new", "changed", "gone"}``:
+
+    - ``new``: PRs that were not open (or not triaged) last time.
+    - ``changed``: PRs whose next action moved, e.g. "fix CI" to "waiting on
+      reviewer" after your push. Action text is what you act on, so score
+      drift alone does not count as a change.
+    - ``gone``: PRs no longer open, with the last recorded action for context.
+    """
+    old_by_key = {(o.get("repo"), o.get("number")): o for o in old}
+    new_by_key = {(r.repo, r.number): r for r in new_rows}
+
+    added = [
+        {"repo": r.repo, "number": r.number, "title": r.title, "action": r.action, "url": r.url}
+        for key, r in new_by_key.items()
+        if key not in old_by_key
+    ]
+    changed = []
+    for key, r in new_by_key.items():
+        prev = old_by_key.get(key)
+        if prev is None or prev.get("action") == r.action:
+            continue
+        changed.append(
+            {
+                "repo": r.repo,
+                "number": r.number,
+                "title": r.title,
+                "was": prev.get("action") or "?",
+                "now": r.action,
+                "url": r.url,
+            }
+        )
+    gone = [
+        {
+            "repo": o.get("repo"),
+            "number": o.get("number"),
+            "title": o.get("title") or "",
+            "was": o.get("action") or "?",
+            "url": o.get("url") or "",
+        }
+        for key, o in old_by_key.items()
+        if key not in new_by_key
+    ]
+    return {"new": added, "changed": changed, "gone": gone}

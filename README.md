@@ -113,6 +113,7 @@ gitsense predict vllm-project/vllm#12345
 # Triage every open PR you've authored, worst-first (one next action each)
 gitsense triage octocat
 gitsense triage octocat --shallow            # one search call, no per-PR lookups
+gitsense triage octocat --since-last         # only what changed since your last run
 ```
 
 `radar` weighs recent merge velocity, maintainer response time, stale-PR ratio, open-to-merged pressure, and outsider-friendliness; `predict` scores one PR from its review decision, draft/conflict/CI status, diff size, tests, and age. `triage` reuses the same scoring across all your open PRs and collapses each into a next action (address the review, fix CI, rebase, ping). All are triage heuristics, not guarantees.
