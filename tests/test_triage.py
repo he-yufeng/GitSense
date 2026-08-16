@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from gitsense.triage import (
     TriageRow,
     build_row,
@@ -46,7 +48,7 @@ def _search_item(**overrides):
         "repository_url": "https://api.github.com/repos/o/r",
         "draft": False,
         "created_at": "2026-07-01T00:00:00Z",
-        "updated_at": "2026-08-01T00:00:00Z",
+        "updated_at": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat(),
     }
     item.update(overrides)
     return item

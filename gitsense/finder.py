@@ -166,10 +166,20 @@ def rank_with_llm(
     if not candidates:
         return []
 
-    api_key = api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
-    base_url = base_url or os.environ.get("OPENAI_BASE_URL") or os.environ.get(
-        "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
-    )
+    if base_url is None:
+        base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENROUTER_BASE_URL")
+    if api_key is None:
+        # Key and host must come from the same provider: an OpenAI key on the
+        # OpenAI default host, an OpenRouter key on OpenRouter. The previous
+        # default sent OPENAI_API_KEY users to OpenRouter, where the key 401s.
+        openai_key = os.environ.get("OPENAI_API_KEY")
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+        if openai_key:
+            api_key = openai_key
+        elif openrouter_key:
+            api_key = openrouter_key
+            if base_url is None:
+                base_url = "https://openrouter.ai/api/v1"
     if not api_key:
         # Without LLM, return candidates as-is with no ranking
         for c in candidates:
@@ -205,12 +215,21 @@ Issues:
 
 Respond with ONLY the JSON array."""
 
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-        max_tokens=2000,
-    )
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=2000,
+        )
+    except Exception:
+        # Provider errors (auth, quota, network) degrade to the unranked shape
+        # instead of killing the whole run.
+        for c in candidates[:10]:
+            c["match_score"] = 5
+            c["reason"] = "LLM ranking unavailable (provider error)"
+            c["approach"] = ""
+        return candidates[:10]
 
     content = resp.choices[0].message.content.strip()
     if content.startswith("```"):

@@ -91,3 +91,58 @@ def test_linked_pr_issues_filtered_by_default():
 def test_linked_pr_issues_included_on_opt_in():
     queries = build_search_queries(["python"], min_stars=100, labels=[], include_linked=True)
     assert all("-linked:pr" not in q for q in queries)
+
+
+def test_openai_key_stays_on_openai_host(monkeypatch):
+    from gitsense import finder
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
+
+    captured = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            raise RuntimeError("stop after client construction")
+
+    class FakeOpenAI:
+        def __init__(self, api_key=None, base_url=None):
+            captured["base_url"] = base_url
+            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+    monkeypatch.setattr(finder, "OpenAI", FakeOpenAI)
+    out = finder.rank_with_llm(
+        [{"repo": "o/r", "title": "t", "labels": [], "body": "b", "comments": 0, "updated_at": ""}],
+        ["python"],
+    )
+    assert captured["base_url"] is None  # OpenAI SDK default host, not OpenRouter
+    assert out[0]["reason"] == "LLM ranking unavailable (provider error)"
+
+
+def test_openrouter_key_routes_to_openrouter(monkeypatch):
+    from gitsense import finder
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
+
+    captured = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            raise RuntimeError("stop after client construction")
+
+    class FakeOpenAI:
+        def __init__(self, api_key=None, base_url=None):
+            captured["base_url"] = base_url
+            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+    monkeypatch.setattr(finder, "OpenAI", FakeOpenAI)
+    finder.rank_with_llm(
+        [{"repo": "o/r", "title": "t", "labels": [], "body": "b", "comments": 0, "updated_at": ""}],
+        ["python"],
+    )
+    assert captured["base_url"] == "https://openrouter.ai/api/v1"
