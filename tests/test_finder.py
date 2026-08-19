@@ -1,5 +1,6 @@
 """Tests for the search query builder."""
 
+import httpx
 import pytest
 
 from gitsense.finder import build_search_queries, fetch_candidates
@@ -105,7 +106,7 @@ def test_openai_key_stays_on_openai_host(monkeypatch):
 
     class FakeCompletions:
         def create(self, **kwargs):
-            raise RuntimeError("stop after client construction")
+            raise httpx.ConnectError("stop after client construction")
 
     class FakeOpenAI:
         def __init__(self, api_key=None, base_url=None):
@@ -133,7 +134,7 @@ def test_openrouter_key_routes_to_openrouter(monkeypatch):
 
     class FakeCompletions:
         def create(self, **kwargs):
-            raise RuntimeError("stop after client construction")
+            raise httpx.ConnectError("stop after client construction")
 
     class FakeOpenAI:
         def __init__(self, api_key=None, base_url=None):

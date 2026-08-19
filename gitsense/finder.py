@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 from gitsense.github_client import get_issue_comments, search_issues
 
@@ -222,7 +222,7 @@ Respond with ONLY the JSON array."""
             temperature=0.2,
             max_tokens=2000,
         )
-    except Exception:
+    except (httpx.HTTPError, OpenAIError):
         # Provider errors (auth, quota, network) degrade to the unranked shape
         # instead of killing the whole run.
         for c in candidates[:10]:
