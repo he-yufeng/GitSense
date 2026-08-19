@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-import tomllib
+import pytest
+
+tomllib = pytest.importorskip("tomllib", reason="stdlib tomllib needs Python 3.11+")
 
 import gitsense
 
