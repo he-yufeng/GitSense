@@ -32,7 +32,7 @@ def query_key(
         {
             "skills": sorted(s.lower() for s in skills),
             "stars": min_stars,
-            "labels": sorted(l.lower() for l in labels),
+            "labels": sorted(lab.lower() for lab in labels),
             "updated_days": updated_days,
             "include_assigned": include_assigned,
             "include_linked": include_linked,
