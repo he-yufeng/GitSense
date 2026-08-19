@@ -44,9 +44,14 @@ def main():
     is_flag=True,
     help="Also scan comments for people claiming the issue (one API call per issue)",
 )
+@click.option(
+    "--watch",
+    is_flag=True,
+    help="Digest mode: show only issues not seen by an earlier --watch run with the same filters",
+)
 def find(skills: str, profile_user: str, stars: int, labels: str, model: str, api_key: str | None,
          no_llm: bool, limit: int, updated_days: int, max_comments: int | None,
-         include_assigned: bool, include_linked: bool, check_claims: bool):
+         include_assigned: bool, include_linked: bool, check_claims: bool, watch: bool):
     """Find open issues that match your skills.
 
     \b
@@ -114,6 +119,29 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
             ranked = rank_with_llm(
                 candidates, skill_list, model=model, api_key=api_key
             )[:limit]
+
+    if watch:
+        from gitsense.watch import diff_watch, load_watch, query_key, save_watch, watch_path
+
+        key = query_key(
+            skill_list, stars, label_list, updated_days, include_assigned, include_linked, max_comments
+        )
+        path = watch_path()
+        state = load_watch(path)
+        new_results, first_seen = diff_watch(state, key, ranked)
+        save_watch(state, path)
+        if first_seen is None:
+            console.print(
+                f"[dim]First watch for this filter set: {len(ranked)} results recorded as the baseline.[/dim]"
+            )
+        else:
+            seen_count = len(ranked) - len(new_results)
+            console.print(
+                f"[dim]Watch digest since {first_seen}: {len(new_results)} new, {seen_count} already seen.[/dim]"
+            )
+            ranked = new_results
+            if not ranked:
+                return
 
     _print_results(ranked, skill_list)
 

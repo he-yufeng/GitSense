@@ -94,6 +94,7 @@ Ranking with gpt-4o-mini...
 # Find issues across GitHub, ranked by skill match
 gitsense find --skills python,fastapi --stars 5000 --labels bug
 gitsense find --skills python --no-llm                              # skip LLM ranking (faster)
+gitsense find --skills python --watch                             # digest of what's new since your last watch
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 
 # Or let GitSense read your public repos and infer your skills for you
@@ -157,11 +158,10 @@ GitHub search is free (rate-limited without a token). LLM ranking costs whatever
 
 ## Roadmap
 
-**Shipped:** repo radar (gauge maintainer responsiveness and merge-friendliness before you invest time), PR success prediction (estimate merge probability for a specific draft), profile mode (infer your skills from your public repos, so the issue search seeds itself), and PR triage (one next action for every open PR you've authored, worst-first).
+**Shipped:** watch mode (`find --watch` digests only the issues you have not seen, per filter set), repo radar (gauge maintainer responsiveness and merge-friendliness before you invest time), PR success prediction (estimate merge probability for a specific draft), profile mode (infer your skills from your public repos, so the issue search seeds itself), and PR triage (one next action for every open PR you've authored, worst-first).
 
 **Planned:**
 
-- **Watch mode** — a daily/weekly digest of new issues that match your filters, so good first issues come to you instead of needing a manual re-run.
 - **Difficulty calibration** — check the radar's difficulty estimate against issues you actually closed, so the score gets more honest the more you use it.
 
 ## Contributing
