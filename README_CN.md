@@ -124,6 +124,8 @@ gitsense triage octocat --since-last         # 只看和上次盘点相比变了
 export GITHUB_TOKEN=your-github-token
 ```
 
+没设 GITHUB_TOKEN 时，GitSense 会自动尝试 `gh auth token`：本机装着已登录的 GitHub CLI 就能直接用，不用手动建 token。
+
 ### LLM 服务
 
 GitSense 用 OpenAI 兼容接口做排序。没有 API key 也能用，只是没有匹配度打分。

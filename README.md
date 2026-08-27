@@ -129,6 +129,8 @@ Without a token you get 10 requests/minute. With a token, 30/minute:
 export GITHUB_TOKEN=your-github-token
 ```
 
+If GITHUB_TOKEN is not set, GitSense falls back to `gh auth token`, so a logged-in GitHub CLI works with no manual token setup.
+
 ### LLM Provider
 
 GitSense uses an OpenAI-compatible API for ranking. Without an API key, it still works — you just don't get skill-match scoring.

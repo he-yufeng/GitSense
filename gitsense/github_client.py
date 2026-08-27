@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
+from functools import lru_cache
 from typing import Any
 
 import httpx
@@ -10,8 +13,34 @@ import httpx
 GITHUB_API = "https://api.github.com"
 
 
-def _get_headers() -> dict[str, str]:
+def _gh_cli_token() -> str | None:
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "token"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+@lru_cache(maxsize=1)
+def _get_token() -> str | None:
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        return token
+    token = _gh_cli_token()
+    if token:
+        print("gitsense: using GitHub token from the gh CLI", file=sys.stderr)
+    return token
+
+
+def _get_headers() -> dict[str, str]:
+    token = _get_token()
     headers = {"Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
