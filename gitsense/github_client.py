@@ -20,6 +20,7 @@ def _gh_cli_token() -> str | None:
             capture_output=True,
             text=True,
             timeout=5,
+            check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
