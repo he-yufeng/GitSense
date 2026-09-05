@@ -2,9 +2,10 @@
 
 ``predict`` answers "will this one PR merge". This answers the question you
 actually have once a few dozen PRs are in flight: which of *my* open PRs need
-me today, and what do they need. The search API gives the list; each PR is
+me today, and what do they need. The search API gives the list; the PRs are
 then enriched with the same signals ``predict`` uses (review decision, CI,
-conflicts, diff size) and collapsed into a single next action. Rows sort
+conflicts, diff size), fetched in one batched GraphQL query instead of four
+REST calls per PR, and collapsed into a single next action. Rows sort
 worst-first so the top of the table is your todo list.
 
 The scoring reuses :func:`gitsense.predictor.score_pr`; everything new here —
@@ -14,9 +15,13 @@ without network access.
 
 from __future__ import annotations
 
+import json
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+
+import httpx
 
 from gitsense.predictor import analyze_pr
 
@@ -185,6 +190,157 @@ def enrich_row(
 
 
 # ---------------------------------------------------------------------------
+# batched GraphQL enrichment
+# ---------------------------------------------------------------------------
+
+# GitHub caps a query's total node cost; 50 PRs of this shape sit well under it.
+_GQL_CHUNK = 50
+
+_PR_FIELDS = """\
+        isDraft
+        additions
+        changedFiles
+        mergeable
+        mergeStateStatus
+        reviewDecision
+        createdAt
+        files(first: 100) {
+          nodes {
+            path
+          }
+        }
+        commits(last: 1) {
+          nodes {
+            commit {
+              statusCheckRollup {
+                state
+              }
+            }
+          }
+        }"""
+
+
+class _GraphQLBatchError(Exception):
+    """The batched query came back with errors; caller falls back to REST."""
+
+
+def _pr_ref(item: dict[str, Any]) -> tuple[str, str, int]:
+    repo = (item.get("repository_url") or "").rsplit("/", 2)[-2:]
+    return repo[0], repo[1], int(item["number"])
+
+
+def _build_pr_batch_query(items: list[dict[str, Any]]) -> str:
+    """One GraphQL query that fetches every signal for many PRs via aliases."""
+    blocks = []
+    for i, item in enumerate(items):
+        owner, name, number = _pr_ref(item)
+        # json.dumps gives valid GraphQL string quoting for owner/repo names
+        blocks.append(
+            f"  pr{i}: repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) {{\n"
+            f"    pullRequest(number: {number}) {{\n"
+            f"{_PR_FIELDS}\n"
+            f"    }}\n"
+            f"  }}"
+        )
+    return "query {\n" + "\n".join(blocks) + "\n}"
+
+
+def _mergeable_state_from_node(node: dict[str, Any]) -> str | None:
+    # GraphQL splits REST's mergeable_state into two enums; fold them back into
+    # the REST vocabulary that next_action and score_pr already understand.
+    if (node.get("mergeable") or "").upper() == "CONFLICTING":
+        return "conflicting"
+    state = (node.get("mergeStateStatus") or "").upper()
+    if state == "DIRTY":
+        return "dirty"
+    return state.lower() or None
+
+
+def _rollup_state(node: dict[str, Any]) -> str:
+    commits = (node.get("commits") or {}).get("nodes") or []
+    if not commits:
+        return ""
+    commit = (commits[0] or {}).get("commit") or {}
+    return ((commit.get("statusCheckRollup") or {}).get("state") or "").upper()
+
+
+def _row_from_graphql_node(
+    item: dict[str, Any], node: dict[str, Any], *, stale_days: int
+) -> TriageRow:
+    """Map one aliased GraphQL pullRequest node onto the same row REST builds."""
+    from gitsense.predictor import files_touch_tests
+
+    decision = (node.get("reviewDecision") or "").upper()
+    if decision in {"", "REVIEW_REQUIRED"}:
+        decision = None
+    files = [
+        {"filename": f.get("path", "")}
+        for f in (node.get("files") or {}).get("nodes") or []
+    ]
+    pr = {
+        "draft": bool(node.get("isDraft")),
+        "additions": node.get("additions") or 0,
+        "changed_files": node.get("changedFiles") or 0,
+        "mergeable_state": _mergeable_state_from_node(node),
+        "created_at": node.get("createdAt"),
+    }
+    return build_row(
+        item,
+        pr=pr,
+        review_decision=decision,
+        ci_failing=(_rollup_state(node) == "FAILURE"),
+        touches_tests=files_touch_tests(files),
+        stale_days=stale_days,
+    )
+
+
+def _rows_from_payload(
+    chunk: list[dict[str, Any]], payload: dict[str, Any], *, stale_days: int
+) -> list[TriageRow]:
+    if payload.get("errors"):
+        raise _GraphQLBatchError(str(payload["errors"])[:200])
+    data = payload.get("data") or {}
+    rows = []
+    for i, item in enumerate(chunk):
+        node = (data.get(f"pr{i}") or {}).get("pullRequest")
+        if not node:
+            # PR gone between search and fetch: keep a shallow row, not a crash
+            rows.append(build_row(item, stale_days=stale_days))
+            continue
+        rows.append(_row_from_graphql_node(item, node, stale_days=stale_days))
+    return rows
+
+
+def enrich_rows(
+    items: list[dict[str, Any]],
+    *,
+    stale_days: int = 14,
+) -> list[TriageRow]:
+    """Enrich many PRs with batched GraphQL queries instead of 4 REST calls each.
+
+    Falls back to the old per-PR REST path when the GraphQL request itself
+    fails (older GHES without these fields, proxy trouble, auth errors), so a
+    broken GraphQL endpoint never costs the user their triage table.
+    """
+    from gitsense import github_client
+
+    try:
+        rows: list[TriageRow] = []
+        for start in range(0, len(items), _GQL_CHUNK):
+            chunk = items[start : start + _GQL_CHUNK]
+            payload = github_client.graphql(_build_pr_batch_query(chunk))
+            rows.extend(_rows_from_payload(chunk, payload, stale_days=stale_days))
+        return rows
+    except (httpx.HTTPError, ValueError, _GraphQLBatchError):
+        # ValueError covers a non-JSON body from a proxy or old GHES
+        print(
+            "gitsense: batched GraphQL enrichment failed, using per-PR REST calls",
+            file=sys.stderr,
+        )
+        return [enrich_row(item, stale_days=stale_days) for item in items]
+
+
+# ---------------------------------------------------------------------------
 # --since-last: snapshot diffing
 # ---------------------------------------------------------------------------
 
@@ -194,6 +350,13 @@ def snapshot_path(root: str = ".") -> str:
     import os
 
     return os.path.join(root, ".gitsense", "triage-last.json")
+
+
+def default_snapshot_path(state_dir_override: str | None = None) -> str:
+    """Per-user snapshot location, migrating any legacy CWD-local copy once."""
+    from gitsense.state import resolve_state_file
+
+    return resolve_state_file(state_dir_override, "triage-last.json")
 
 
 def load_snapshot(path: str) -> list[dict[str, Any]]:

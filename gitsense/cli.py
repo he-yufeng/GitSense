@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict
 
 import click
+import httpx
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -49,9 +50,17 @@ def main():
     is_flag=True,
     help="Digest mode: show only issues not seen by an earlier --watch run with the same filters",
 )
+@click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text")
+@click.option("--out", type=click.Path(dir_okay=False), help="Write a report file")
+@click.option(
+    "--state-dir",
+    default=None,
+    help="Directory for --watch state (default: ~/.gitsense)",
+)
 def find(skills: str, profile_user: str, stars: int, labels: str, model: str, api_key: str | None,
          no_llm: bool, limit: int, updated_days: int, max_comments: int | None,
-         include_assigned: bool, include_linked: bool, check_claims: bool, watch: bool):
+         include_assigned: bool, include_linked: bool, check_claims: bool, watch: bool,
+         fmt: str, out: str | None, state_dir: str | None):
     """Find open issues that match your skills.
 
     \b
@@ -61,8 +70,9 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
         gitsense find --skills rust,wasm --stars 500
         gitsense find --skills python --labels bug --no-llm
         gitsense find --skills python,llm --updated-days 30 --max-comments 10
+        gitsense find --skills python,llm --format json --out results.json
     """
-    from gitsense.finder import fetch_candidates, rank_with_llm
+    from gitsense.finder import SearchError, fetch_candidates, rank_with_llm
 
     skill_list = [s.strip() for s in skills.split(",") if s.strip()]
     if profile_user:
@@ -91,22 +101,30 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
         raise click.UsageError("--max-comments cannot be negative")
 
     with console.status("[bold blue]Searching GitHub for matching issues..."):
-        candidates = fetch_candidates(
-            skill_list,
-            min_stars=stars,
-            labels=label_list,
-            updated_days=updated_days,
-            max_comments=max_comments,
-            include_assigned=include_assigned,
-            include_linked=include_linked,
-            check_claims=check_claims,
-        )
+        try:
+            candidates = fetch_candidates(
+                skill_list,
+                min_stars=stars,
+                labels=label_list,
+                updated_days=updated_days,
+                max_comments=max_comments,
+                include_assigned=include_assigned,
+                include_linked=include_linked,
+                check_claims=check_claims,
+            )
+        except SearchError as exc:
+            raise click.ClickException(str(exc)) from exc
 
     if not candidates:
         console.print("[dim]No matching issues found. Try broader skills or lower --stars.[/dim]")
         return
 
     console.print(f"[green]Found {len(candidates)} candidates.[/green]")
+    if len(candidates) < limit:
+        console.print(
+            f"[dim]Only {len(candidates)} candidates matched these filters, "
+            f"fewer than the requested --limit {limit}.[/dim]"
+        )
 
     if no_llm:
         ranked = candidates[:limit]
@@ -117,16 +135,16 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
     else:
         with console.status(f"[bold blue]Ranking with {model}..."):
             ranked = rank_with_llm(
-                candidates, skill_list, model=model, api_key=api_key
-            )[:limit]
+                candidates, skill_list, model=model, api_key=api_key, limit=limit
+            )
 
     if watch:
-        from gitsense.watch import diff_watch, load_watch, query_key, save_watch, watch_path
+        from gitsense.watch import default_watch_path, diff_watch, load_watch, query_key, save_watch
 
         key = query_key(
             skill_list, stars, label_list, updated_days, include_assigned, include_linked, max_comments
         )
-        path = watch_path()
+        path = default_watch_path(state_dir)
         state = load_watch(path)
         new_results, first_seen = diff_watch(state, key, ranked)
         save_watch(state, path)
@@ -143,7 +161,22 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
             if not ranked:
                 return
 
-    _print_results(ranked, skill_list)
+    if fmt == "json" and not out:
+        console.print_json(json.dumps(ranked))
+    else:
+        _print_results(ranked, skill_list)
+
+    if out:
+        from pathlib import Path
+
+        from gitsense.finder import render_markdown
+
+        if fmt == "json":
+            text = json.dumps(ranked, indent=2, ensure_ascii=False) + "\n"
+        else:
+            text = render_markdown(ranked, skill_list)
+        Path(out).write_text(text, encoding="utf-8")
+        console.print(f"\n[green]Wrote report:[/green] {out}")
 
 
 def _print_results(results: list[dict], skills: list[str]) -> None:
@@ -195,7 +228,7 @@ def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
     Example:
         gitsense scan vllm-project/vllm --skills python,cuda
     """
-    from gitsense.github_client import search_issues
+    from gitsense.github_client import describe_http_error, search_issues
 
     skill_list = [s.strip() for s in skills.split(",") if s.strip()] if skills else []
 
@@ -210,7 +243,10 @@ def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
         q = f"repo:{repo} is:issue is:open no:assignee updated:>={since.isoformat()}"
         if skill_list:
             q += f" {' OR '.join(skill_list[:3])}"
-        issues = search_issues(q, per_page=15)
+        try:
+            issues = search_issues(q, per_page=15)
+        except httpx.HTTPError as exc:
+            raise click.ClickException(describe_http_error(exc, what=f"Scanning {repo}")) from exc
         if max_comments is not None:
             issues = [issue for issue in issues if issue.get("comments", 0) <= max_comments]
 
@@ -370,13 +406,18 @@ def predict(pr_ref: str):
         raise click.UsageError(str(exc)) from exc
 
     with console.status(f"[bold blue]Fetching {owner}/{repo}#{number}..."):
-        pr = github_client.get_pull_request(owner, repo, number)
-        reviews = github_client.get_pull_request_reviews(owner, repo, number)
-        files = github_client.get_pull_request_files(owner, repo, number)
-        head_sha = (pr.get("head") or {}).get("sha") or ""
-        ci_state = (
-            github_client.get_commit_status_state(owner, repo, head_sha) if head_sha else ""
-        )
+        try:
+            pr = github_client.get_pull_request(owner, repo, number)
+            reviews = github_client.get_pull_request_reviews(owner, repo, number)
+            files = github_client.get_pull_request_files(owner, repo, number)
+            head_sha = (pr.get("head") or {}).get("sha") or ""
+            ci_state = (
+                github_client.get_commit_status_state(owner, repo, head_sha) if head_sha else ""
+            )
+        except httpx.HTTPError as exc:
+            raise click.ClickException(
+                github_client.describe_http_error(exc, what=f"Fetching {owner}/{repo}#{number}")
+            ) from exc
 
     prediction = analyze_pr(
         pr,
@@ -403,7 +444,13 @@ def predict(pr_ref: str):
 @click.option("--shallow", is_flag=True, help="Skip per-PR API calls (fast, no scores)")
 @click.option("--since-last", is_flag=True, help="Show only what changed since the last triage snapshot")
 @click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
-def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last: bool, fmt: str):
+@click.option(
+    "--state-dir",
+    default=None,
+    help="Directory for --since-last snapshots (default: ~/.gitsense)",
+)
+def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last: bool, fmt: str,
+           state_dir: str | None):
     """Triage every open PR you've authored, worst-first.
 
     \b
@@ -413,14 +460,15 @@ def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last
         gitsense triage octocat --shallow          # one search call only
         gitsense triage octocat --since-last       # delta vs your last run
     """
+    from gitsense.github_client import describe_http_error
     from gitsense.triage import (
         build_row,
+        default_snapshot_path,
         diff_snapshots,
-        enrich_row,
+        enrich_rows,
         fetch_authored_prs,
         load_snapshot,
         save_snapshot,
-        snapshot_path,
         sort_rows,
     )
 
@@ -430,24 +478,31 @@ def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last
         raise click.UsageError("--stale-days must be greater than zero")
 
     with console.status(f"[bold blue]Finding @{username}'s open PRs..."):
-        items = fetch_authored_prs(username, limit)[:limit]
+        try:
+            items = fetch_authored_prs(username, limit)[:limit]
+        except httpx.HTTPError as exc:
+            raise click.ClickException(
+                describe_http_error(exc, what=f"Finding @{username}'s PRs")
+            ) from exc
 
     if not items:
         console.print(f"[dim]No open PRs found for @{username}.[/dim]")
         return
 
-    rows = []
-    for item in items:
-        if shallow:
-            rows.append(build_row(item, stale_days=stale_days))
-        else:
-            repo = (item.get("repository_url") or "").rsplit("/", 2)[-1]
-            with console.status(f"[bold blue]Checking {repo}#{item.get('number')}..."):
-                rows.append(enrich_row(item, stale_days=stale_days))
+    if shallow:
+        rows = [build_row(item, stale_days=stale_days) for item in items]
+    else:
+        with console.status(f"[bold blue]Checking {len(items)} open PRs..."):
+            try:
+                rows = enrich_rows(items, stale_days=stale_days)
+            except httpx.HTTPError as exc:
+                raise click.ClickException(
+                    describe_http_error(exc, what="Enriching PRs")
+                ) from exc
     rows = sort_rows(rows)
 
     if since_last:
-        snap = snapshot_path()
+        snap = default_snapshot_path(state_dir)
         delta = diff_snapshots(load_snapshot(snap), rows)
         save_snapshot(rows, snap)
         if fmt == "json":

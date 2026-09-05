@@ -96,6 +96,7 @@ gitsense find --skills python,fastapi --stars 5000 --labels bug
 gitsense find --skills python --no-llm                              # skip LLM ranking (faster)
 gitsense find --skills python --watch                             # digest of what's new since your last watch
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
+gitsense find --skills python,llm --format json --out results.json  # export like radar/triage
 
 # Or let GitSense read your public repos and infer your skills for you
 gitsense profile torvalds
@@ -117,7 +118,7 @@ gitsense triage octocat --shallow            # one search call, no per-PR lookup
 gitsense triage octocat --since-last         # only what changed since your last run
 ```
 
-`radar` weighs recent merge velocity, maintainer response time, stale-PR ratio, open-to-merged pressure, and outsider-friendliness; `predict` scores one PR from its review decision, draft/conflict/CI status, diff size, tests, and age. `triage` reuses the same scoring across all your open PRs and collapses each into a next action (address the review, fix CI, rebase, ping). All are triage heuristics, not guarantees.
+`radar` weighs recent merge velocity, maintainer response time, stale-PR ratio, open-to-merged pressure, and outsider-friendliness; `predict` scores one PR from its review decision, draft/conflict/CI status, diff size, tests, and age. `triage` reuses the same scoring across all your open PRs and collapses each into a next action (address the review, fix CI, rebase, ping), fetching the per-PR signals in one batched GraphQL query instead of four REST calls per PR, with an automatic REST fallback. All are triage heuristics, not guarantees.
 
 ## Configuration
 
@@ -130,6 +131,10 @@ export GITHUB_TOKEN=your-github-token
 ```
 
 If GITHUB_TOKEN is not set, GitSense falls back to `gh auth token`, so a logged-in GitHub CLI works with no manual token setup.
+
+### State Files
+
+Watch history (`find --watch`) and triage snapshots (`triage --since-last`) live in `~/.gitsense`, so they survive running gitsense from any directory. Pass `--state-dir` to keep them elsewhere. An old `.gitsense` folder in the current directory is copied over once, not deleted.
 
 ### LLM Provider
 

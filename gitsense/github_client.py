@@ -5,12 +5,14 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any
 
 import httpx
 
 GITHUB_API = "https://api.github.com"
+GITHUB_GRAPHQL = "https://api.github.com/graphql"
 
 
 def _gh_cli_token() -> str | None:
@@ -171,3 +173,48 @@ def fetch_user_repos(username: str, per_page: int = 100) -> list[dict[str, Any]]
     )
     resp.raise_for_status()
     return resp.json()
+
+
+def graphql(query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Run a GraphQL query against the GitHub API and return the full payload.
+
+    Callers must check the ``errors`` key themselves: GitHub happily returns
+    partial data alongside errors.
+    """
+    resp = httpx.post(
+        GITHUB_GRAPHQL,
+        json={"query": query, "variables": variables or {}},
+        headers=_get_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def rate_limit_reset(resp: httpx.Response) -> str | None:
+    """Human-readable rate-limit reset time from response headers, if present."""
+    reset = resp.headers.get("X-RateLimit-Reset", "")
+    if not reset.isdigit():
+        return None
+    return datetime.fromtimestamp(int(reset), timezone.utc).strftime("%H:%M UTC")
+
+
+def describe_http_error(exc: httpx.HTTPError, *, what: str = "GitHub request") -> str:
+    """Render an httpx failure as one clean line for CLI output (no traceback)."""
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return f"{what} failed: {exc}"
+    resp = exc.response
+    status = resp.status_code
+    if status == 403 and resp.headers.get("X-RateLimit-Remaining") == "0":
+        when = rate_limit_reset(resp)
+        suffix = f"; it resets at {when}" if when else ""
+        return f"{what} hit the GitHub rate limit{suffix}"
+    if status == 401:
+        return f"{what} failed: GitHub rejected the token (401). Check GITHUB_TOKEN or gh auth login."
+    if status == 403:
+        if "secondary rate limit" in resp.text:
+            return f"{what} hit a GitHub secondary rate limit; wait a few minutes and retry"
+        return f"{what} failed: GitHub said 403 Forbidden (rate limit or token scope)"
+    if status == 404:
+        return f"{what} failed: not found (404). Check the name and that it is public"
+    return f"{what} failed: GitHub returned HTTP {status}"

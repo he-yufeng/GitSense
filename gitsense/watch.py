@@ -1,6 +1,7 @@
 """Watch state for `find --watch`: remember which issues a search already showed.
 
-The state file lives at `.gitsense/watch.json` next to where the command runs.
+The state file lives at ``~/.gitsense/watch.json`` (overridable with
+``--state-dir``); a legacy ``./.gitsense`` copy is migrated over on first use.
 Each distinct filter signature keeps its own seen-set, so tightening a label
 filter does not flush the history of a looser one.
 """
@@ -16,6 +17,13 @@ from typing import Any
 def watch_path(root: str = ".") -> str:
     """Where the watch state lives for a working directory."""
     return os.path.join(root, ".gitsense", "watch.json")
+
+
+def default_watch_path(state_dir_override: str | None = None) -> str:
+    """Per-user watch state location, migrating any legacy CWD-local copy once."""
+    from gitsense.state import resolve_state_file
+
+    return resolve_state_file(state_dir_override, "watch.json")
 
 
 def query_key(

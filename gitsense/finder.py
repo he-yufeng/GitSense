@@ -10,7 +10,11 @@ from typing import Any
 import httpx
 from openai import OpenAI, OpenAIError
 
-from gitsense.github_client import get_issue_comments, search_issues
+from gitsense.github_client import describe_http_error, get_issue_comments, search_issues
+
+
+class SearchError(Exception):
+    """The GitHub searches failed: nothing to rank, and it is not 'no results'."""
 
 # comment phrases that read like someone holding the issue, EN and CN.
 # GitHub has no "claimed" state beyond assignment, so people hold issues in
@@ -109,12 +113,16 @@ def fetch_candidates(
 
     seen_urls = set()
     candidates = []
+    errors: list[httpx.HTTPError] = []
 
     for query in queries:
         try:
             issues = search_issues(query, per_page=min(max_results, 20))
-        except httpx.HTTPError:
-            issues = []
+        except httpx.HTTPError as exc:
+            # collect and decide below: a dead query must not masquerade as
+            # "no matching issues" when every query actually failed
+            errors.append(exc)
+            continue
 
         for issue in issues:
             url = issue.get("html_url", "")
@@ -152,6 +160,8 @@ def fetch_candidates(
                 "claim": claim,
             })
 
+    if not candidates and errors:
+        raise SearchError(describe_http_error(errors[0], what="GitHub issue search"))
     return candidates[:max_results]
 
 
@@ -161,10 +171,12 @@ def rank_with_llm(
     model: str = "gpt-4o-mini",
     api_key: str | None = None,
     base_url: str | None = None,
+    limit: int = 8,
 ) -> list[dict]:
     """Use an LLM to rank and explain candidates based on skill match."""
     if not candidates:
         return []
+    top_n = min(limit, len(candidates))
 
     if base_url is None:
         base_url = os.environ.get("OPENAI_BASE_URL") or os.environ.get("OPENROUTER_BASE_URL")
@@ -186,13 +198,13 @@ def rank_with_llm(
             c["match_score"] = 5
             c["reason"] = "LLM ranking unavailable (no API key set)"
             c["approach"] = ""
-        return candidates[:10]
+        return candidates[:top_n]
 
     client = OpenAI(api_key=api_key, base_url=base_url)
 
     # Prepare condensed issue list for the LLM
     issue_summaries = []
-    for i, c in enumerate(candidates[:20]):
+    for i, c in enumerate(candidates[: max(20, top_n)]):
         issue_summaries.append(
             f"[{i}] {c['repo']}: {c['title']} (labels: {', '.join(c['labels'][:3])}) "
             f"comments: {c.get('comments', 0)}, updated: {c.get('updated_at', '')} — "
@@ -207,7 +219,7 @@ Here are {len(issue_summaries)} open GitHub issues. For each, evaluate:
 2. A one-line reason why it's a good match (or not)
 3. A brief approach hint (how to start fixing it)
 
-Respond as a JSON array of objects, sorted by match score descending. Only include the top 8.
+Respond as a JSON array of objects, sorted by match score descending. Only include the top {top_n}.
 Each object: {{"index": <int>, "score": <1-10>, "reason": "<string>", "approach": "<string>"}}
 
 Issues:
@@ -220,16 +232,16 @@ Respond with ONLY the JSON array."""
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=2000,
+            max_tokens=max(2000, top_n * 150),
         )
     except (httpx.HTTPError, OpenAIError):
         # Provider errors (auth, quota, network) degrade to the unranked shape
         # instead of killing the whole run.
-        for c in candidates[:10]:
+        for c in candidates[:top_n]:
             c["match_score"] = 5
             c["reason"] = "LLM ranking unavailable (provider error)"
             c["approach"] = ""
-        return candidates[:10]
+        return candidates[:top_n]
 
     content = resp.choices[0].message.content.strip()
     if content.startswith("```"):
@@ -239,11 +251,11 @@ Respond with ONLY the JSON array."""
     try:
         rankings = json.loads(content)
     except json.JSONDecodeError:
-        for c in candidates[:10]:
+        for c in candidates[:top_n]:
             c["match_score"] = 5
             c["reason"] = "LLM ranking failed"
             c["approach"] = ""
-        return candidates[:10]
+        return candidates[:top_n]
 
     # Merge rankings back into candidates
     result = []
@@ -256,4 +268,25 @@ Respond with ONLY the JSON array."""
             c["approach"] = r.get("approach", "")
             result.append(c)
 
-    return result
+    return result[:top_n]
+
+
+def render_markdown(results: list[dict], skills: list[str]) -> str:
+    """Render find results as a Markdown report for --out."""
+    lines = [f"# GitSense results for: {', '.join(skills)}", ""]
+    for i, r in enumerate(results, 1):
+        score = r.get("match_score", "-")
+        lines.append(f"## {i}. [{score}/10] {r['repo']}")
+        lines.append("")
+        lines.append(f"[{r['title']}]({r['url']})")
+        if r.get("labels"):
+            lines.append(f"\nLabels: {', '.join(r['labels'][:4])}")
+        claim = r.get("claim")
+        if claim:
+            lines.append(f"\nPossibly claimed by @{claim['user']} on {claim['date']}")
+        if r.get("reason"):
+            lines.append(f"\n> {r['reason']}")
+        if r.get("approach"):
+            lines.append(f"\nHow to start: {r['approach']}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"

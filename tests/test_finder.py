@@ -147,3 +147,145 @@ def test_openrouter_key_routes_to_openrouter(monkeypatch):
         ["python"],
     )
     assert captured["base_url"] == "https://openrouter.ai/api/v1"
+
+
+def _candidates(n):
+    return [
+        {
+            "repo": f"o/r{i}",
+            "title": f"issue {i}",
+            "labels": [],
+            "body": "b",
+            "comments": 0,
+            "updated_at": "",
+            "url": f"https://github.com/o/r{i}/issues/1",
+        }
+        for i in range(n)
+    ]
+
+
+def _no_llm_env(monkeypatch):
+    for var in ("OPENAI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_BASE_URL", "OPENROUTER_BASE_URL"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_rank_without_key_returns_up_to_limit(monkeypatch):
+    from gitsense import finder
+
+    _no_llm_env(monkeypatch)
+    out = finder.rank_with_llm(_candidates(12), ["python"], limit=5)
+    assert len(out) == 5
+
+
+def test_rank_without_key_does_not_clamp_below_pool(monkeypatch):
+    from gitsense import finder
+
+    _no_llm_env(monkeypatch)
+    out = finder.rank_with_llm(_candidates(3), ["python"], limit=15)
+    assert len(out) == 3  # pool is the ceiling, not the requested limit
+
+
+def test_llm_prompt_asks_for_the_requested_limit(monkeypatch):
+    from gitsense import finder
+
+    _no_llm_env(monkeypatch)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    captured = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            captured["prompt"] = kwargs["messages"][0]["content"]
+            raise httpx.ConnectError("stop after prompt capture")
+
+    class FakeOpenAI:
+        def __init__(self, api_key=None, base_url=None):
+            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+    monkeypatch.setattr(finder, "OpenAI", FakeOpenAI)
+    finder.rank_with_llm(_candidates(30), ["python"], limit=15)
+    assert "Only include the top 15." in captured["prompt"]
+
+
+def test_provider_error_fallback_respects_limit(monkeypatch):
+    from gitsense import finder
+
+    _no_llm_env(monkeypatch)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            raise httpx.ConnectError("down")
+
+    class FakeOpenAI:
+        def __init__(self, api_key=None, base_url=None):
+            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+    monkeypatch.setattr(finder, "OpenAI", FakeOpenAI)
+    out = finder.rank_with_llm(_candidates(20), ["python"], limit=12)
+    assert len(out) == 12
+    assert out[0]["reason"] == "LLM ranking unavailable (provider error)"
+
+
+def _status_error(status, headers=None):
+    req = httpx.Request("GET", "https://api.github.com/search/issues")
+    resp = httpx.Response(status, headers=headers or {}, request=req)
+    return httpx.HTTPStatusError(f"HTTP {status}", request=req, response=resp)
+
+
+def test_fetch_candidates_raises_search_error_when_all_queries_fail(monkeypatch):
+    from gitsense import finder
+
+    def boom(query, per_page):
+        raise _status_error(
+            403, {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1893456000"}
+        )
+
+    monkeypatch.setattr("gitsense.finder.search_issues", boom)
+    with pytest.raises(finder.SearchError, match="rate limit"):
+        fetch_candidates(["python"], min_stars=0)
+
+
+def test_fetch_candidates_tolerates_partial_query_failure(monkeypatch):
+    def flaky_search(query, per_page):
+        if "good first issue" in query:
+            raise _status_error(502)
+        return [
+            {
+                "title": "quiet bug",
+                "html_url": "https://github.com/o/r/issues/1",
+                "repository_url": "https://api.github.com/repos/o/r",
+                "labels": [{"name": "bug"}],
+                "comments": 2,
+                "created_at": "2026-05-01T00:00:00Z",
+                "updated_at": "2026-05-12T00:00:00Z",
+                "body": "clear repro",
+            }
+        ]
+
+    monkeypatch.setattr("gitsense.finder.search_issues", flaky_search)
+    candidates = fetch_candidates(["python"], min_stars=0)
+    assert [c["title"] for c in candidates] == ["quiet bug"]
+
+
+def test_render_markdown_report():
+    from gitsense.finder import render_markdown
+
+    results = [
+        {
+            "repo": "o/r",
+            "title": "fix the leak",
+            "url": "https://github.com/o/r/issues/1",
+            "labels": ["bug"],
+            "match_score": 9,
+            "reason": "perfect match",
+            "approach": "start in worker.py",
+            "claim": None,
+        }
+    ]
+    text = render_markdown(results, ["python", "cuda"])
+    assert text.startswith("# GitSense results for: python, cuda")
+    assert "## 1. [9/10] o/r" in text
+    assert "[fix the leak](https://github.com/o/r/issues/1)" in text
+    assert "How to start: start in worker.py" in text
+    assert text.endswith("\n")

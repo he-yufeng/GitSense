@@ -91,6 +91,7 @@ $ gitsense find --skills python,llm,cuda --stars 1000
 gitsense find --skills python,fastapi --stars 5000 --labels bug
 gitsense find --skills python --no-llm                              # 跳过 LLM 排序（更快）
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
+gitsense find --skills python,llm --format json --out results.json  # 像 radar/triage 一样导出结果
 
 # 也可以让它读你的公开仓库，自动推断你的技能
 gitsense profile torvalds
@@ -112,7 +113,7 @@ gitsense triage octocat --shallow            # 只调一次搜索 API，不逐�
 gitsense triage octocat --since-last         # 只看和上次盘点相比变了什么
 ```
 
-`radar` 看近期合入速度、维护者响应时间、stale PR 比例、open-to-merged 压力和外部友好度；`predict` 按某个 PR 的 review 意见、draft/冲突/CI 状态、diff 大小、是否带测试和存活时长打分；`triage` 把同一套打分套到你所有 open PR 上，每条收敛成一个下一步动作（回 review、修 CI、rebase、催合）。都是快速筛查用的启发式，不是保证。
+`radar` 看近期合入速度、维护者响应时间、stale PR 比例、open-to-merged 压力和外部友好度；`predict` 按某个 PR 的 review 意见、draft/冲突/CI 状态、diff 大小、是否带测试和存活时长打分；`triage` 把同一套打分套到你所有 open PR 上，每条收敛成一个下一步动作（回 review、修 CI、rebase、催合），详情信号用一次批量 GraphQL 查询拿全，不再每个 PR 调四次 REST，GraphQL 失败会自动回退到 REST。都是快速筛查用的启发式，不是保证。
 
 ## 配置
 
@@ -125,6 +126,10 @@ export GITHUB_TOKEN=your-github-token
 ```
 
 没设 GITHUB_TOKEN 时，GitSense 会自动尝试 `gh auth token`：本机装着已登录的 GitHub CLI 就能直接用，不用手动建 token。
+
+### 状态文件
+
+订阅历史（`find --watch`）和盘点快照（`triage --since-last`）默认存在 `~/.gitsense`，换目录运行也不会丢历史。想换位置就传 `--state-dir`。如果当前目录还留着旧版生成的 `.gitsense` 文件夹，第一次运行会自动复制到新位置，原文件不动。
 
 ### LLM 服务
 
