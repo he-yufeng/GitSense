@@ -129,7 +129,7 @@ export GITHUB_TOKEN=your-github-token
 
 ### 状态文件
 
-订阅历史（`find --watch`）和盘点快照（`triage --since-last`）默认存在 `~/.gitsense`，换目录运行也不会丢历史。想换位置就传 `--state-dir`。如果当前目录还留着旧版生成的 `.gitsense` 文件夹，第一次运行会自动复制到新位置，原文件不动。
+订阅历史（`find --watch`）和盘点快照（`triage --since-last`）默认存在 `~/.gitsense`，换目录运行也不会丢历史。想换位置就传 `--state-dir` 或设 `GITSENSE_HOME`。如果当前目录还留着旧版生成的 `.gitsense` 文件夹，第一次运行会自动复制到新位置，原文件不动。
 
 ### LLM 服务
 

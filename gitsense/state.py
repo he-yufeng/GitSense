@@ -19,6 +19,11 @@ def state_dir(override: str | None = None) -> str:
     """The directory GitSense keeps its state in."""
     if override:
         return os.path.expanduser(override)
+    # GITSENSE_HOME wins over the default; expanduser("~") reads HOME only on
+    # POSIX, so an explicit env var is also how tests control this everywhere.
+    home = os.environ.get("GITSENSE_HOME")
+    if home:
+        return os.path.join(os.path.expanduser(home), _LEGACY_DIR)
     return os.path.join(os.path.expanduser("~"), _LEGACY_DIR)
 
 

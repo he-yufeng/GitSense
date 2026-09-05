@@ -134,7 +134,7 @@ If GITHUB_TOKEN is not set, GitSense falls back to `gh auth token`, so a logged-
 
 ### State Files
 
-Watch history (`find --watch`) and triage snapshots (`triage --since-last`) live in `~/.gitsense`, so they survive running gitsense from any directory. Pass `--state-dir` to keep them elsewhere. An old `.gitsense` folder in the current directory is copied over once, not deleted.
+Watch history (`find --watch`) and triage snapshots (`triage --since-last`) live in `~/.gitsense`, so they survive running gitsense from any directory. Pass `--state-dir` (or set `GITSENSE_HOME`) to keep them elsewhere. An old `.gitsense` folder in the current directory is copied over once, not deleted.
 
 ### LLM Provider
 
