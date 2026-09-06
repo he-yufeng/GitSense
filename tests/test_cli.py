@@ -207,3 +207,35 @@ def test_find_markdown_export_to_file(monkeypatch, tmp_path):
     text = out.read_text(encoding="utf-8")
     assert text.startswith("# GitSense results for: python")
     assert "[issue 1](https://github.com/o/r/issues/1)" in text
+
+
+def test_radar_explain_prints_score_reasons(monkeypatch):
+    from gitsense.radar import RepoRadarReport
+
+    report = RepoRadarReport(
+        repo="o/r",
+        score=83,
+        recommendation="worth a PR",
+        stars=1234,
+        primary_language="python",
+        merged_prs=42,
+        open_prs=7,
+        stale_prs=1,
+        stale_ratio=0.14,
+        median_merge_days=3.5,
+        median_maintainer_response_days=1.0,
+        external_merged_ratio=0.6,
+        open_to_merged_ratio=0.17,
+        skill_matches=["python"],
+        notes=["fast median merge time", "outside contributors are getting merged"],
+        risk_flags=[],
+    )
+    monkeypatch.setattr("gitsense.radar.analyze_repo", lambda *a, **k: report)
+
+    plain = CliRunner().invoke(main, ["radar", "o/r"])
+    assert "fast median merge time" not in plain.output
+
+    explained = CliRunner().invoke(main, ["radar", "o/r", "--explain"])
+    assert explained.exit_code == 0
+    assert "fast median merge time" in explained.output
+    assert "outside contributors are getting merged" in explained.output
