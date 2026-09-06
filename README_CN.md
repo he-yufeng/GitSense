@@ -102,6 +102,7 @@ gitsense scan pytorch/pytorch --skills python --updated-days 14
 
 # 提 PR 前评估仓库（Markdown 或 JSON 证据）
 gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
+gitsense radar vllm-project/vllm --explain  # 逐条摊开每个分数背后的加减分理由
 gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
 
 # 预测某个 open PR 会不会被合（按公开信号打 0-100 分）

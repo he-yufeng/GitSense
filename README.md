@@ -107,6 +107,7 @@ gitsense scan pytorch/pytorch --skills python --updated-days 14
 
 # Score repos before investing a weekend (Markdown or JSON evidence)
 gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
+gitsense radar vllm-project/vllm --explain  # spell out why each score is what it is
 gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
 
 # Predict whether a specific open PR will merge (0–100 from public signals)

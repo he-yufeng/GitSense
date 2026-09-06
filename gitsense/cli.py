@@ -282,6 +282,7 @@ def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
 @click.option("--sample", default=20, show_default=True, help="Merged PR sample size per repo")
 @click.option("--format", "fmt", type=click.Choice(["md", "json"]), default="md")
 @click.option("--out", type=click.Path(dir_okay=False), help="Write a report file")
+@click.option("--explain", is_flag=True, help="Show why each repo got its score, one signal per line")
 def radar(
     repos: tuple[str, ...],
     targets: str | None,
@@ -291,6 +292,7 @@ def radar(
     sample: int,
     fmt: str,
     out: str | None,
+    explain: bool,
 ):
     """Score repos before you spend a weekend on a PR.
 
@@ -334,7 +336,7 @@ def radar(
     if fmt == "json" and not out:
         console.print_json(json.dumps([asdict(report) for report in reports]))
     else:
-        _print_radar_results(reports)
+        _print_radar_results(reports, explain=explain)
 
     if out:
         from gitsense.radar import render_json
@@ -344,7 +346,7 @@ def radar(
         console.print(f"\n[green]Wrote report:[/green] {out}")
 
 
-def _print_radar_results(reports) -> None:
+def _print_radar_results(reports, explain: bool = False) -> None:
     t = Table(title="GitSense Radar", show_lines=False)
     t.add_column("Repo", style="bold", max_width=34)
     t.add_column("Score", justify="right", width=5)
@@ -371,6 +373,13 @@ def _print_radar_results(reports) -> None:
         )
 
     console.print(t)
+    if explain:
+        for report in reports:
+            console.print(f"\n[bold]{report.repo}[/bold] [dim]score {report.score}[/dim]")
+            for note in report.notes:
+                console.print(f"  [dim]•[/dim] {note}")
+            if report.risk_flags:
+                console.print(f"  [yellow]flags:[/yellow] {', '.join(report.risk_flags)}")
     console.print("\n[dim]Signals use public GitHub PR history. Treat this as a triage pass, not a guarantee.[/dim]")
 
 
