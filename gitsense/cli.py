@@ -50,7 +50,7 @@ def main():
     is_flag=True,
     help="Digest mode: show only issues not seen by an earlier --watch run with the same filters",
 )
-@click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text")
+@click.option("--format", "fmt", type=click.Choice(["text", "json", "html"]), default="text")
 @click.option("--out", type=click.Path(dir_okay=False), help="Write a report file")
 @click.option(
     "--state-dir",
@@ -169,10 +169,12 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
     if out:
         from pathlib import Path
 
-        from gitsense.finder import render_markdown
+        from gitsense.finder import render_html, render_markdown
 
         if fmt == "json":
             text = json.dumps(ranked, indent=2, ensure_ascii=False) + "\n"
+        elif fmt == "html":
+            text = render_html(ranked, skill_list)
         else:
             text = render_markdown(ranked, skill_list)
         Path(out).write_text(text, encoding="utf-8")
@@ -280,7 +282,7 @@ def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
 @click.option("--stale-days", default=14, show_default=True, help="Open PR age counted as stale")
 @click.option("--skills", "-s", default="", help="Your skills, comma-separated, for fit signals")
 @click.option("--sample", default=20, show_default=True, help="Merged PR sample size per repo")
-@click.option("--format", "fmt", type=click.Choice(["md", "json"]), default="md")
+@click.option("--format", "fmt", type=click.Choice(["md", "json", "html"]), default="md")
 @click.option("--out", type=click.Path(dir_okay=False), help="Write a report file")
 @click.option("--explain", is_flag=True, help="Show why each repo got its score, one signal per line")
 def radar(
@@ -339,9 +341,14 @@ def radar(
         _print_radar_results(reports, explain=explain)
 
     if out:
-        from gitsense.radar import render_json
+        from gitsense.radar import render_html, render_json
 
-        text = render_json(reports) if fmt == "json" else render_markdown(reports)
+        if fmt == "json":
+            text = render_json(reports)
+        elif fmt == "html":
+            text = render_html(reports)
+        else:
+            text = render_markdown(reports)
         Path(out).write_text(text, encoding="utf-8")
         console.print(f"\n[green]Wrote report:[/green] {out}")
 

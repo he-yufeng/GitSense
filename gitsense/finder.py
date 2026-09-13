@@ -290,3 +290,63 @@ def render_markdown(results: list[dict], skills: list[str]) -> str:
             lines.append(f"\nHow to start: {r['approach']}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def render_html(results: list[dict], skills: list[str]) -> str:
+    """Render find results as a self-contained, email-friendly HTML report.
+
+    Inline styles only, no external assets, single column: it renders in
+    Gmail/Outlook the same as in a browser. Every dynamic string is escaped.
+    """
+    from html import escape
+
+    def esc(value) -> str:
+        return escape(str(value), quote=True)
+
+    blocks: list[str] = []
+    for i, r in enumerate(results, 1):
+        score = esc(r.get("match_score", "-"))
+        meta: list[str] = []
+        if r.get("labels"):
+            meta.append(f"Labels: {esc(', '.join(r['labels'][:4]))}")
+        claim = r.get("claim")
+        if claim:
+            meta.append(f"Possibly claimed by @{esc(claim['user'])} on {esc(claim['date'])}")
+        meta_html = (
+            f'<div style="color:#6a737d;font-size:12px;margin-top:4px">'
+            f"{' &middot; '.join(meta)}</div>"
+            if meta
+            else ""
+        )
+        reason_html = (
+            f'<blockquote style="margin:8px 0 0 0;padding:6px 10px;border-left:3px solid #dfe2e5;'
+            f'color:#444d56;font-size:13px">{esc(r["reason"])}</blockquote>'
+            if r.get("reason")
+            else ""
+        )
+        approach_html = (
+            f'<div style="margin-top:6px;font-size:13px"><b>How to start:</b> {esc(r["approach"])}</div>'
+            if r.get("approach")
+            else ""
+        )
+        blocks.append(
+            f'<div style="border:1px solid #e1e4e8;border-radius:6px;padding:12px 16px;'
+            f'margin:12px 0">'
+            f'<div style="font-size:13px;color:#6a737d">#{i} &middot; '
+            f'<b style="color:#24292e">{score}/10</b> &middot; {esc(r["repo"])}</div>'
+            f'<div style="margin-top:6px;font-size:15px">'
+            f'<a href="{esc(r["url"])}" style="color:#0366d6;text-decoration:none">{esc(r["title"])}</a></div>'
+            f"{meta_html}{reason_html}{approach_html}"
+            f"</div>"
+        )
+    skills_line = esc(", ".join(skills))
+    return (
+        "<!DOCTYPE html>\n"
+        '<html><body style="margin:0;padding:16px;background:#ffffff;font-family:'
+        "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif\">"
+        '<div style="max-width:680px;margin:0 auto">'
+        f'<h2 style="margin:0 0 4px 0;font-size:18px;color:#24292e">GitSense results</h2>'
+        f'<div style="color:#6a737d;font-size:13px;margin-bottom:8px">for: {skills_line}</div>'
+        + "".join(blocks)
+        + "</div></body></html>\n"
+    )

@@ -97,6 +97,7 @@ gitsense find --skills python --no-llm                              # skip LLM r
 gitsense find --skills python --watch                             # digest of what's new since your last watch
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 gitsense find --skills python,llm --format json --out results.json  # export like radar/triage
+gitsense find --skills python,llm --format html --out digest.html   # email-friendly report (inline styles)
 
 # Or let GitSense read your public repos and infer your skills for you
 gitsense profile torvalds
@@ -109,6 +110,7 @@ gitsense scan pytorch/pytorch --skills python --updated-days 14
 gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
 gitsense radar vllm-project/vllm --explain  # spell out why each score is what it is
 gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
+gitsense radar --targets targets.txt --skills python,agents --format html --out radar.html
 
 # Predict whether a specific open PR will merge (0–100 from public signals)
 gitsense predict vllm-project/vllm#12345

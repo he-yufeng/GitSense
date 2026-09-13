@@ -92,6 +92,7 @@ gitsense find --skills python,fastapi --stars 5000 --labels bug
 gitsense find --skills python --no-llm                              # 跳过 LLM 排序（更快）
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 gitsense find --skills python,llm --format json --out results.json  # 像 radar/triage 一样导出结果
+gitsense find --skills python,llm --format html --out digest.html   # 邮件友好报告（内联样式）
 
 # 也可以让它读你的公开仓库，自动推断你的技能
 gitsense profile torvalds
@@ -104,6 +105,7 @@ gitsense scan pytorch/pytorch --skills python --updated-days 14
 gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
 gitsense radar vllm-project/vllm --explain  # 逐条摊开每个分数背后的加减分理由
 gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
+gitsense radar --targets targets.txt --skills python,agents --format html --out radar.html
 
 # 预测某个 open PR 会不会被合（按公开信号打 0-100 分）
 gitsense predict vllm-project/vllm#12345

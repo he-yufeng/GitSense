@@ -314,6 +314,70 @@ def render_markdown(reports: list[RepoRadarReport]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def render_html(reports: list[RepoRadarReport]) -> str:
+    """Render radar reports as a self-contained, email-friendly HTML report.
+
+    Inline styles only, no external assets: the score table and per-repo
+    signal lists render the same in Gmail/Outlook as in a browser.
+    """
+    from html import escape
+
+    def esc(value) -> str:
+        return escape(str(value), quote=True)
+
+    rows = "".join(
+        "<tr>"
+        f'<td style="padding:6px 10px;border-bottom:1px solid #e1e4e8">{esc(r.repo)}</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #e1e4e8;text-align:right">'
+        f"<b>{esc(r.score)}</b></td>"
+        f'<td style="padding:6px 10px;border-bottom:1px solid #e1e4e8">{esc(r.recommendation)}</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #e1e4e8;text-align:right">{esc(r.merged_prs)}</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #e1e4e8;text-align:right">{esc(r.open_prs)}</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #e1e4e8;text-align:right">{esc(r.stale_prs)}</td>'
+        "</tr>"
+        for r in reports
+    )
+    head_cell = (
+        'style="padding:6px 10px;border-bottom:2px solid #24292e;'
+        'text-align:left;font-size:12px;color:#6a737d"'
+    )
+    details: list[str] = []
+    for r in reports:
+        facts = [
+            f"Stars: {esc(r.stars)}",
+            f"Primary language: {esc(r.primary_language)}",
+            f"External merged ratio: {esc(_fmt_percent(r.external_merged_ratio))}",
+        ]
+        if r.skill_matches:
+            facts.append(f"Skill matches: {esc(', '.join(r.skill_matches))}")
+        if r.notes:
+            facts.append(f"Signals: {esc(', '.join(r.notes))}")
+        if r.risk_flags:
+            facts.append(
+                f'<span style="color:#b31d28">Risk flags: {esc(", ".join(r.risk_flags))}</span>'
+            )
+        details.append(
+            f'<div style="border:1px solid #e1e4e8;border-radius:6px;padding:10px 14px;margin:10px 0">'
+            f'<div style="font-size:14px"><b>{esc(r.repo)}</b> '
+            f'<span style="color:#6a737d;font-size:12px">· {esc(r.score)} · {esc(r.recommendation)}</span></div>'
+            f'<div style="color:#444d56;font-size:13px;margin-top:6px">{"<br>".join(facts)}</div>'
+            f"</div>"
+        )
+    return (
+        "<!DOCTYPE html>\n"
+        '<html><body style="margin:0;padding:16px;background:#ffffff;font-family:'
+        "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif\">"
+        '<div style="max-width:720px;margin:0 auto">'
+        '<h2 style="margin:0 0 8px 0;font-size:18px;color:#24292e">GitSense Radar Report</h2>'
+        '<table style="border-collapse:collapse;width:100%;font-size:13px">'
+        f"<thead><tr><th {head_cell}>Repo</th><th {head_cell}>Score</th><th {head_cell}>Action</th>"
+        f"<th {head_cell}>Merged</th><th {head_cell}>Open</th><th {head_cell}>Stale</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table>"
+        + "".join(details)
+        + "</div></body></html>\n"
+    )
+
+
 def render_json(reports: list[RepoRadarReport]) -> str:
     return json.dumps([asdict(report) for report in reports], indent=2, ensure_ascii=False) + "\n"
 
