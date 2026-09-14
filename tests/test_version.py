@@ -6,9 +6,10 @@ import pytest
 
 tomllib = pytest.importorskip("tomllib", reason="stdlib tomllib needs Python 3.11+")
 
-import gitsense  # noqa: E402 - the importorskip gate has to run first on 3.10
-
 
 def test_version_matches_pyproject():
+    # local import: the importorskip gate must run before gitsense loads
+    import gitsense
+
     pyproject = tomllib.loads(Path("pyproject.toml").read_text())
     assert gitsense.__version__ == pyproject["project"]["version"]
