@@ -39,7 +39,8 @@ def _radar_report(**overrides) -> RepoRadarReport:
         "external_merged_ratio": 0.6,
         "skill_matches": ["python"],
         "notes": ["active maintainers"],
-        "risk_flags": [],}
+        "risk_flags": [],
+    }
     base.update(overrides)
     return RepoRadarReport(**base)
 
