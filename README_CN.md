@@ -103,7 +103,7 @@ gitsense scan pytorch/pytorch --skills python --updated-days 14
 
 # 提 PR 前评估仓库（Markdown 或 JSON 证据）
 gitsense radar vllm-project/vllm microsoft/qlib --skills python,llm --out radar.md
-gitsense radar vllm-project/vllm --explain  # 逐条摊开每个分数背后的加减分理由
+gitsense radar vllm-project/vllm --explain  # 完整评分卡：每个因子的数值、加减分和理由
 gitsense radar --targets targets.txt --skills python,agents --format json --out radar.json
 gitsense radar --targets targets.txt --skills python,agents --format html --out radar.html
 

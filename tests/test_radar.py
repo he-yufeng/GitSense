@@ -13,6 +13,7 @@ from gitsense.radar import (
     render_markdown,
     risk_flags_for_repo,
     score_repo,
+    scorecard_repo,
 )
 
 
@@ -304,3 +305,87 @@ def test_radar_cli_writes_json_report(monkeypatch, tmp_path):
     assert result.exit_code == 0
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload[0]["repo"] == "one/repo"
+
+
+def test_scorecard_and_score_repo_agree_on_score_and_notes():
+    kwargs = dict(
+        merged_prs=35,
+        open_prs=20,
+        stale_ratio=0.05,
+        median_merge_days=4,
+        median_maintainer_response_days=2,
+        external_merged_ratio=0.7,
+        skill_matches=["python", "llm"],
+        stars=12_000,
+    )
+
+    score, notes = score_repo(**kwargs)
+    card_score, factors = scorecard_repo(**kwargs)
+
+    assert card_score == score
+    assert [factor.reason for factor in factors if factor.reason] == notes
+
+
+def test_scorecard_factors_show_numbers_and_sum_to_score():
+    score, factors = scorecard_repo(
+        merged_prs=12,
+        open_prs=120,
+        stale_ratio=0.6,
+        median_merge_days=60,
+        median_maintainer_response_days=30,
+        external_merged_ratio=0.1,
+        skill_matches=[],
+        stars=50,
+    )
+
+    assert 50 + sum(factor.delta for factor in factors) == score == 4
+    by_key = {factor.key: factor for factor in factors}
+    assert by_key["merge_activity"].value == "12 merged"
+    assert by_key["merge_activity"].delta == 8
+    assert by_key["stale_backlog"].delta == -24
+    assert by_key["maintainer_response"].delta == -10
+    assert "60" in by_key["merge_speed"].value
+    assert by_key["stars"].delta == 0
+
+
+def test_scorecard_clamps_to_zero_and_a_hundred():
+    low, _ = scorecard_repo(
+        merged_prs=0,
+        open_prs=200,
+        stale_ratio=0.9,
+        median_merge_days=90,
+        median_maintainer_response_days=60,
+        external_merged_ratio=0.0,
+        skill_matches=[],
+        stars=1,
+    )
+    assert low == 0
+
+
+def test_render_markdown_lays_out_the_scorecard():
+    from gitsense.radar import ScoreFactor
+
+    report = RepoRadarReport(
+        repo="o/r",
+        score=83,
+        recommendation="Go",
+        stars=1234,
+        primary_language="Python",
+        merged_prs=42,
+        open_prs=7,
+        stale_prs=1,
+        stale_ratio=0.14,
+        median_merge_days=3.5,
+        median_maintainer_response_days=1.0,
+        external_merged_ratio=0.6,
+        factors=[
+            ScoreFactor("merge_speed", "Median merge time", "3.5d", 14, "fast median merge time"),
+            ScoreFactor("stars", "Stars", "1,234", 3),
+        ],
+    )
+
+    text = render_markdown([report])
+
+    assert "| Factor | Value | Points | Why |" in text
+    assert "| Median merge time | 3.5d | +14 | fast median merge time |" in text
+    assert "| Stars | 1,234 | +3 | · |" in text

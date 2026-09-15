@@ -25,6 +25,22 @@ OUTSIDER_ASSOCIATIONS = {"NONE", "CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "FIRST
 
 
 @dataclass
+class ScoreFactor:
+    """One scored signal: the metric, the points it moved, and why.
+
+    The scorecard is what makes a score trustworthy: every factor shows its
+    number, not just a label. ``reason`` stays empty for factors that did not
+    adjust the score, so derived notes match the historical plain list.
+    """
+
+    key: str
+    label: str
+    value: str
+    delta: int
+    reason: str = ""
+
+
+@dataclass
 class RepoRadarReport:
     repo: str
     score: int
@@ -42,6 +58,7 @@ class RepoRadarReport:
     skill_matches: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     risk_flags: list[str] = field(default_factory=list)
+    factors: list[ScoreFactor] = field(default_factory=list)
 
 
 def parse_repo_name(repo: str) -> tuple[str, str]:
@@ -114,7 +131,7 @@ def analyze_repo(
     stale_ratio = (stale_count / open_count) if open_count else 0.0
     open_to_merged_ratio = (open_count / merged_count) if merged_count else None
 
-    score, notes = score_repo(
+    score, factors = scorecard_repo(
         merged_prs=merged_count,
         open_prs=open_count,
         stale_ratio=stale_ratio,
@@ -148,9 +165,114 @@ def analyze_repo(
         external_merged_ratio=external_ratio,
         open_to_merged_ratio=open_to_merged_ratio,
         skill_matches=skill_matches,
-        notes=notes,
+        notes=[factor.reason for factor in factors if factor.reason],
         risk_flags=risk_flags,
+        factors=factors,
     )
+
+
+def scorecard_repo(
+    *,
+    merged_prs: int,
+    open_prs: int,
+    stale_ratio: float,
+    median_merge_days: float | None,
+    median_maintainer_response_days: float | None,
+    external_merged_ratio: float | None,
+    skill_matches: list[str],
+    stars: int,
+) -> tuple[int, list[ScoreFactor]]:
+    """Score a repo and lay the card face up: every factor with its number."""
+    factors: list[ScoreFactor] = []
+
+    merge_value = f"{merged_prs} merged"
+    if merged_prs >= 30:
+        factors.append(ScoreFactor("merge_activity", "Merge activity", merge_value, 15, "active merge history"))
+    elif merged_prs >= 10:
+        factors.append(ScoreFactor("merge_activity", "Merge activity", merge_value, 8, "some recent merges"))
+    elif merged_prs == 0:
+        factors.append(ScoreFactor("merge_activity", "Merge activity", merge_value, -18, "no recent merged PRs"))
+    else:
+        factors.append(ScoreFactor("merge_activity", "Merge activity", merge_value, 0))
+
+    merge_days_value = _fmt_days(median_merge_days)
+    if median_merge_days is not None:
+        if median_merge_days <= 7:
+            factors.append(ScoreFactor("merge_speed", "Median merge time", merge_days_value, 14, "fast median merge time"))
+        elif median_merge_days <= 21:
+            factors.append(ScoreFactor("merge_speed", "Median merge time", merge_days_value, 6, "reasonable median merge time"))
+        elif median_merge_days > 45:
+            factors.append(ScoreFactor("merge_speed", "Median merge time", merge_days_value, -12, "slow median merge time"))
+        else:
+            factors.append(ScoreFactor("merge_speed", "Median merge time", merge_days_value, 0))
+    else:
+        factors.append(ScoreFactor("merge_speed", "Median merge time", merge_days_value, 0))
+
+    stale_value = f"{stale_ratio:.0%} of {open_prs} open"
+    if stale_ratio >= 0.5 and open_prs:
+        factors.append(ScoreFactor("stale_backlog", "Stale PR backlog", stale_value, -24, "many stale open PRs"))
+    elif stale_ratio >= 0.25:
+        factors.append(ScoreFactor("stale_backlog", "Stale PR backlog", stale_value, -12, "noticeable stale PR backlog"))
+    elif open_prs:
+        factors.append(ScoreFactor("stale_backlog", "Stale PR backlog", stale_value, 6, "stale PR ratio looks manageable"))
+    else:
+        factors.append(ScoreFactor("stale_backlog", "Stale PR backlog", stale_value, 0))
+
+    response_value = _fmt_days(median_maintainer_response_days)
+    if median_maintainer_response_days is not None:
+        if median_maintainer_response_days <= 3:
+            factors.append(ScoreFactor("maintainer_response", "Maintainer response", response_value, 10, "maintainers respond quickly"))
+        elif median_maintainer_response_days <= 10:
+            factors.append(ScoreFactor("maintainer_response", "Maintainer response", response_value, 4, "maintainer response time is acceptable"))
+        elif median_maintainer_response_days > 21:
+            factors.append(ScoreFactor("maintainer_response", "Maintainer response", response_value, -10, "maintainer responses look slow"))
+        else:
+            factors.append(ScoreFactor("maintainer_response", "Maintainer response", response_value, 0))
+    else:
+        factors.append(ScoreFactor("maintainer_response", "Maintainer response", response_value, 0))
+
+    external_value = _fmt_percent(external_merged_ratio)
+    if external_merged_ratio is not None:
+        if external_merged_ratio >= 0.5:
+            factors.append(ScoreFactor("external_share", "External merged share", external_value, 10, "outside contributors are getting merged"))
+        elif external_merged_ratio < 0.2:
+            factors.append(ScoreFactor("external_share", "External merged share", external_value, -8, "recent merged PRs are mostly internal"))
+        else:
+            factors.append(ScoreFactor("external_share", "External merged share", external_value, 0))
+    else:
+        factors.append(ScoreFactor("external_share", "External merged share", external_value, 0))
+
+    queue_value = f"{open_prs} open vs {merged_prs} merged"
+    if open_prs >= 100 and merged_prs < 10:
+        factors.append(ScoreFactor("queue_pressure", "Open queue pressure", queue_value, -10, "open PR queue is much larger than recent merge volume"))
+    elif open_prs >= 50 and merged_prs < 5:
+        factors.append(ScoreFactor("queue_pressure", "Open queue pressure", queue_value, -8, "crowded open PR queue"))
+    else:
+        factors.append(ScoreFactor("queue_pressure", "Open queue pressure", queue_value, 0))
+
+    if skill_matches:
+        factors.append(
+            ScoreFactor(
+                "skill_fit",
+                "Skill fit",
+                ", ".join(skill_matches[:4]),
+                min(10, len(skill_matches) * 3),
+                f"matches skills: {', '.join(skill_matches[:4])}",
+            )
+        )
+    else:
+        factors.append(ScoreFactor("skill_fit", "Skill fit", "none", 0))
+
+    stars_value = f"{stars:,}"
+    if stars >= 10_000:
+        factors.append(ScoreFactor("stars", "Stars", stars_value, 5))
+    elif stars >= 1_000:
+        factors.append(ScoreFactor("stars", "Stars", stars_value, 3))
+    else:
+        factors.append(ScoreFactor("stars", "Stars", stars_value, 0))
+
+    score = 50 + sum(factor.delta for factor in factors)
+    return max(0, min(100, score)), factors
 
 
 def score_repo(
@@ -164,76 +286,18 @@ def score_repo(
     skill_matches: list[str],
     stars: int,
 ) -> tuple[int, list[str]]:
-    score = 50
-    notes: list[str] = []
-
-    if merged_prs >= 30:
-        score += 15
-        notes.append("active merge history")
-    elif merged_prs >= 10:
-        score += 8
-        notes.append("some recent merges")
-    elif merged_prs == 0:
-        score -= 18
-        notes.append("no recent merged PRs")
-
-    if median_merge_days is not None:
-        if median_merge_days <= 7:
-            score += 14
-            notes.append("fast median merge time")
-        elif median_merge_days <= 21:
-            score += 6
-            notes.append("reasonable median merge time")
-        elif median_merge_days > 45:
-            score -= 12
-            notes.append("slow median merge time")
-
-    if stale_ratio >= 0.5 and open_prs:
-        score -= 24
-        notes.append("many stale open PRs")
-    elif stale_ratio >= 0.25:
-        score -= 12
-        notes.append("noticeable stale PR backlog")
-    elif open_prs:
-        score += 6
-        notes.append("stale PR ratio looks manageable")
-
-    if median_maintainer_response_days is not None:
-        if median_maintainer_response_days <= 3:
-            score += 10
-            notes.append("maintainers respond quickly")
-        elif median_maintainer_response_days <= 10:
-            score += 4
-            notes.append("maintainer response time is acceptable")
-        elif median_maintainer_response_days > 21:
-            score -= 10
-            notes.append("maintainer responses look slow")
-
-    if external_merged_ratio is not None:
-        if external_merged_ratio >= 0.5:
-            score += 10
-            notes.append("outside contributors are getting merged")
-        elif external_merged_ratio < 0.2:
-            score -= 8
-            notes.append("recent merged PRs are mostly internal")
-
-    if open_prs >= 100 and merged_prs < 10:
-        score -= 10
-        notes.append("open PR queue is much larger than recent merge volume")
-    elif open_prs >= 50 and merged_prs < 5:
-        score -= 8
-        notes.append("crowded open PR queue")
-
-    if skill_matches:
-        score += min(10, len(skill_matches) * 3)
-        notes.append(f"matches skills: {', '.join(skill_matches[:4])}")
-
-    if stars >= 10_000:
-        score += 5
-    elif stars >= 1_000:
-        score += 3
-
-    return max(0, min(100, score)), notes
+    """Backward-compatible (score, notes) form of scorecard_repo()."""
+    score, factors = scorecard_repo(
+        merged_prs=merged_prs,
+        open_prs=open_prs,
+        stale_ratio=stale_ratio,
+        median_merge_days=median_merge_days,
+        median_maintainer_response_days=median_maintainer_response_days,
+        external_merged_ratio=external_merged_ratio,
+        skill_matches=skill_matches,
+        stars=stars,
+    )
+    return score, [factor.reason for factor in factors if factor.reason]
 
 
 def risk_flags_for_repo(
@@ -309,6 +373,17 @@ def render_markdown(reports: list[RepoRadarReport]) -> str:
             lines.append(f"- Signals: {', '.join(report.notes)}")
         if report.risk_flags:
             lines.append(f"- Risk flags: {', '.join(report.risk_flags)}")
+        if report.factors:
+            lines.extend(
+                [
+                    "",
+                    "| Factor | Value | Points | Why |",
+                    "| --- | ---: | ---: | --- |",
+                ]
+            )
+            for factor in report.factors:
+                points = f"+{factor.delta}" if factor.delta > 0 else str(factor.delta)
+                lines.append(f"| {factor.label} | {factor.value} | {points} | {factor.reason or '·'} |")
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"

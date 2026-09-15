@@ -383,8 +383,25 @@ def _print_radar_results(reports, explain: bool = False) -> None:
     if explain:
         for report in reports:
             console.print(f"\n[bold]{report.repo}[/bold] [dim]score {report.score}[/dim]")
-            for note in report.notes:
-                console.print(f"  [dim]•[/dim] {note}")
+            if report.factors:
+                card = Table(show_header=True, header_style="dim", box=None, pad_edge=False)
+                card.add_column("Factor", style="dim", width=22)
+                card.add_column("Value", justify="right", width=22)
+                card.add_column("Pts", justify="right", width=5)
+                card.add_column("Why", max_width=44)
+                for factor in report.factors:
+                    pts = (
+                        f"[green]+{factor.delta}[/green]"
+                        if factor.delta > 0
+                        else f"[red]{factor.delta}[/red]"
+                        if factor.delta < 0
+                        else "[dim]0[/dim]"
+                    )
+                    card.add_row(factor.label, factor.value, pts, factor.reason or "[dim]·[/dim]")
+                console.print(card)
+            else:
+                for note in report.notes:
+                    console.print(f"  [dim]•[/dim] {note}")
             if report.risk_flags:
                 console.print(f"  [yellow]flags:[/yellow] {', '.join(report.risk_flags)}")
     console.print("\n[dim]Signals use public GitHub PR history. Treat this as a triage pass, not a guarantee.[/dim]")

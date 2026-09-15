@@ -239,3 +239,38 @@ def test_radar_explain_prints_score_reasons(monkeypatch):
     assert explained.exit_code == 0
     assert "fast median merge time" in explained.output
     assert "outside contributors are getting merged" in explained.output
+
+
+def test_radar_explain_lays_out_the_scorecard(monkeypatch):
+    from gitsense.radar import RepoRadarReport, ScoreFactor
+
+    report = RepoRadarReport(
+        repo="o/r",
+        score=83,
+        recommendation="worth a PR",
+        stars=1234,
+        primary_language="python",
+        merged_prs=42,
+        open_prs=7,
+        stale_prs=1,
+        stale_ratio=0.14,
+        median_merge_days=3.5,
+        median_maintainer_response_days=1.0,
+        external_merged_ratio=0.6,
+        open_to_merged_ratio=0.17,
+        skill_matches=["python"],
+        notes=["fast median merge time"],
+        risk_flags=[],
+        factors=[
+            ScoreFactor("merge_speed", "Median merge time", "3.5d", 14, "fast median merge time"),
+            ScoreFactor("stars", "Stars", "1,234", 3),
+        ],
+    )
+    monkeypatch.setattr("gitsense.radar.analyze_repo", lambda *a, **k: report)
+
+    explained = CliRunner().invoke(main, ["radar", "o/r", "--explain"])
+
+    assert explained.exit_code == 0
+    assert "Median merge time" in explained.output
+    assert "3.5d" in explained.output
+    assert "+14" in explained.output
