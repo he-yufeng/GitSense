@@ -308,16 +308,16 @@ def test_radar_cli_writes_json_report(monkeypatch, tmp_path):
 
 
 def test_scorecard_and_score_repo_agree_on_score_and_notes():
-    kwargs = dict(
-        merged_prs=35,
-        open_prs=20,
-        stale_ratio=0.05,
-        median_merge_days=4,
-        median_maintainer_response_days=2,
-        external_merged_ratio=0.7,
-        skill_matches=["python", "llm"],
-        stars=12_000,
-    )
+    kwargs = {
+        "merged_prs": 35,
+        "open_prs": 20,
+        "stale_ratio": 0.05,
+        "median_merge_days": 4,
+        "median_maintainer_response_days": 2,
+        "external_merged_ratio": 0.7,
+        "skill_matches": ["python", "llm"],
+        "stars": 12_000,
+    }
 
     score, notes = score_repo(**kwargs)
     card_score, factors = scorecard_repo(**kwargs)
