@@ -149,6 +149,7 @@ def test_analyze_repo_uses_public_pr_signals(monkeypatch):
     monkeypatch.setattr("gitsense.radar.search_issue_count", fake_count)
     monkeypatch.setattr("gitsense.radar.search_issues", fake_search)
     monkeypatch.setattr("gitsense.radar.get_issue_comments", fake_comments)
+    monkeypatch.setattr("gitsense.radar.get_pull_request_reviews", lambda owner, repo, number: [])
 
     report = analyze_repo("o/r", skills=["python", "cuda"], days=90)
 
@@ -389,3 +390,55 @@ def test_render_markdown_lays_out_the_scorecard():
     assert "| Factor | Value | Points | Why |" in text
     assert "| Median merge time | 3.5d | +14 | fast median merge time |" in text
     assert "| Stars | 1,234 | +3 | · |" in text
+
+
+def test_maintainer_response_counts_review_only_answers(monkeypatch):
+    """A maintainer who answers with a review (no issue comment) must count;
+    the issue-comments endpoint never carries reviews."""
+
+    def fake_repo_info(owner, repo):
+        return {
+            "full_name": f"{owner}/{repo}",
+            "description": "kernels",
+            "stargazers_count": 2000,
+            "language": "Python",
+            "topics": [],
+        }
+
+    def fake_count(query):
+        if "is:merged" in query:
+            return 10
+        if "created:<" in query:
+            return 0
+        return 5
+
+    def fake_search(query, sort="created", order="desc", per_page=30):
+        return [
+            {
+                "html_url": "https://github.com/o/r/pull/1",
+                "created_at": "2026-05-01T00:00:00Z",
+                "closed_at": "2026-05-03T00:00:00Z",
+                "author_association": "NONE",
+            },
+        ]
+
+    monkeypatch.setattr("gitsense.radar.get_repo_info", fake_repo_info)
+    monkeypatch.setattr("gitsense.radar.get_repo_languages", lambda o, r: {"Python": 100})
+    monkeypatch.setattr("gitsense.radar.search_issue_count", fake_count)
+    monkeypatch.setattr("gitsense.radar.search_issues", fake_search)
+    # no issue comments at all; the maintainer APPROVED via review ~2 days in
+    monkeypatch.setattr("gitsense.radar.get_issue_comments", lambda o, r, n: [])
+    monkeypatch.setattr(
+        "gitsense.radar.get_pull_request_reviews",
+        lambda o, r, n: [
+            {
+                "submitted_at": "2026-05-03T00:00:00Z",
+                "author_association": "MEMBER",
+                "state": "APPROVED",
+            }
+        ],
+    )
+
+    report = analyze_repo("o/r", skills=["python"], days=90)
+
+    assert report.median_maintainer_response_days == 2

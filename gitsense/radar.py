@@ -14,6 +14,7 @@ import httpx
 
 from gitsense.github_client import (
     get_issue_comments,
+    get_pull_request_reviews,
     get_repo_info,
     get_repo_languages,
     search_issue_count,
@@ -472,15 +473,26 @@ def _sample_maintainer_response_days(
             comments = get_issue_comments(owner, repo, number)
         except httpx.HTTPError:
             comments = []
-        maintainer_comments = [
-            comment
+        # Review-first repos answer with a review, not an issue comment; the
+        # issue-comments endpoint does not carry reviews at all.
+        try:
+            reviews = get_pull_request_reviews(owner, repo, number)
+        except httpx.HTTPError:
+            reviews = []
+        maintainer_times = [
+            comment.get("created_at")
             for comment in comments
             if comment.get("author_association") in MAINTAINER_ASSOCIATIONS
         ]
-        if not maintainer_comments:
+        maintainer_times += [
+            review.get("submitted_at")
+            for review in reviews
+            if review.get("author_association") in MAINTAINER_ASSOCIATIONS
+        ]
+        maintainer_times = [t for t in maintainer_times if t]
+        if not maintainer_times:
             continue
-        first_comment = min(maintainer_comments, key=lambda comment: comment.get("created_at", ""))
-        value = _days_between(created_at, first_comment.get("created_at"))
+        value = _days_between(created_at, min(maintainer_times))
         if value is not None and value >= 0:
             values.append(value)
     return values
