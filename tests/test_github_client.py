@@ -81,3 +81,78 @@ def test_gh_called_with_short_timeout(monkeypatch):
     github_client._get_headers()
     assert captured["argv"] == ["gh", "auth", "token"]
     assert captured["timeout"] == 5
+
+
+# ---------------------------------------------------------------------------
+# get_commit_status_state: legacy status + Actions check runs folded together
+# ---------------------------------------------------------------------------
+
+
+class _Resp:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self._payload
+
+
+def _ci_router(status_payload, check_run_pages):
+    """Route by URL suffix: /status vs /check-runs (paged)."""
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if url.endswith("/status"):
+            return _Resp(status_payload)
+        page = (kwargs.get("params") or {}).get("page", 1)
+        return _Resp({"check_runs": check_run_pages.get(page, [])})
+
+    return fake_get, calls
+
+
+def test_ci_state_legacy_failure_short_circuits(monkeypatch):
+    fake_get, calls = _ci_router({"state": "failure"}, {})
+    monkeypatch.setattr(github_client.httpx, "get", fake_get)
+
+    assert github_client.get_commit_status_state("o", "r", "abc") == "failure"
+    assert calls == ["https://api.github.com/repos/o/r/commits/abc/status"]
+
+
+def test_ci_state_actions_failure_detected(monkeypatch):
+    # Actions-only repo: legacy endpoint knows nothing, a check run is red
+    fake_get, _ = _ci_router(
+        {"state": "pending"},
+        {1: [{"conclusion": "success"}, {"conclusion": "failure"}]},
+    )
+    monkeypatch.setattr(github_client.httpx, "get", fake_get)
+
+    assert github_client.get_commit_status_state("o", "r", "abc") == "failure"
+
+
+def test_ci_state_actions_green_keeps_legacy_state(monkeypatch):
+    fake_get, _ = _ci_router(
+        {"state": "success"},
+        {1: [{"conclusion": "success"}, {"conclusion": "skipped"}]},
+    )
+    monkeypatch.setattr(github_client.httpx, "get", fake_get)
+
+    assert github_client.get_commit_status_state("o", "r", "abc") == "success"
+
+
+def test_ci_state_empty_everywhere_stays_empty(monkeypatch):
+    fake_get, _ = _ci_router({"state": ""}, {1: []})
+    monkeypatch.setattr(github_client.httpx, "get", fake_get)
+
+    assert github_client.get_commit_status_state("o", "r", "abc") == ""
+
+
+def test_ci_state_pages_check_runs(monkeypatch):
+    page1 = [{"conclusion": "success"}] * 100
+    page2 = [{"conclusion": "timed_out"}]
+    fake_get, _ = _ci_router({"state": "pending"}, {1: page1, 2: page2})
+    monkeypatch.setattr(github_client.httpx, "get", fake_get)
+
+    assert github_client.get_commit_status_state("o", "r", "abc") == "failure"

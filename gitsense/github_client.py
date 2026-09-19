@@ -153,14 +153,38 @@ def get_pull_request_reviews(owner: str, repo: str, number: int) -> list[dict[st
 
 
 def get_commit_status_state(owner: str, repo: str, ref: str) -> str:
-    """Combined CI status for a commit: 'success', 'failure', 'pending', or ''."""
+    """Combined CI signal for a commit across legacy statuses and check runs.
+
+    The legacy /status endpoint does not include GitHub Actions check runs,
+    so on Actions-only repos it stays "pending"/empty forever and a red
+    pipeline reads as not-failing. Fold the check-runs conclusions in.
+    """
     resp = httpx.get(
         f"{GITHUB_API}/repos/{owner}/{repo}/commits/{ref}/status",
         headers=_get_headers(),
         timeout=15,
     )
     resp.raise_for_status()
-    return resp.json().get("state", "")
+    state = resp.json().get("state", "")
+    if state == "failure":
+        return state
+    page = 1
+    while True:
+        runs_resp = httpx.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}/commits/{ref}/check-runs",
+            params={"per_page": 100, "page": page},
+            headers=_get_headers(),
+            timeout=15,
+        )
+        runs_resp.raise_for_status()
+        runs = runs_resp.json().get("check_runs", [])
+        for run in runs:
+            if run.get("conclusion") in ("failure", "timed_out", "action_required"):
+                return "failure"
+        if len(runs) < 100:
+            break
+        page += 1
+    return state
 
 
 def fetch_user_repos(username: str, per_page: int = 100) -> list[dict[str, Any]]:
