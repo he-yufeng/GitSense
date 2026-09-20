@@ -1,3 +1,4 @@
+
 """Predict how likely a specific open pull request is to get merged.
 
 A transparent heuristic (no ML), in the same spirit as the repo radar: from the
@@ -7,9 +8,9 @@ the human-readable notes behind it. The scoring (:func:`score_pr`) is pure, so
 it's easy to test; :func:`analyze_pr` pulls those signals out of a GitHub PR
 payload and feeds them in.
 """
-
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -127,9 +128,18 @@ def derive_review_decision(reviews: list[dict[str, Any]]) -> str | None:
 
 def files_touch_tests(files: list[dict[str, Any]]) -> bool:
     """True if any changed file looks like a test (path contains 'test' or 'spec')."""
-    for f in files:
-        name = (f.get("filename") or "").lower()
-        if "test" in name or "spec" in name:
+    _TEST_PATTERNS = tuple(re.compile(p) for p in (
+    r"(?i)(^|/)(tests?|specs?|testing|__tests__|e2e)/",            # tests/, spec/, e2e/
+    r"(?i)(^|/)((unit)?test[_.-]|conftest\.py$|testutils?[_.])",   # test_foo.py, conftest.py
+    r"(?i)[_.-](test|spec)\.[^/]+$",                               # foo_test.go, foo.spec.ts
+    r"(Test|Tests|Spec)\.[^/]+$",                                  # FooTest.java, UserSpec.scala
+    r"(^|/)Test[A-Z][^/]*$",                                       # TestFoo.java
+    r"(?i)(^|/)(testdata|fixtures?)/",                             # testdata/, fixtures/
+))
+
+    for f in files: 
+        path = f.get("filename") or ""
+        if any(p.search(path) for p in _TEST_PATTERNS):
             return True
     return False
 

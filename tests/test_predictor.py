@@ -45,6 +45,9 @@ def test_derive_review_decision_approved_and_none():
 def test_files_touch_tests():
     assert files_touch_tests([{"filename": "src/app.py"}, {"filename": "tests/test_app.py"}])
     assert files_touch_tests([{"filename": "app/foo.spec.ts"}])
+    assert files_touch_tests([{"filename": "src/test_utils.py"}])
+    assert files_touch_tests([{"filename": "src/UserServiceSpec.scala"}])
+    assert not files_touch_tests([{"filename": "docs/specs.md"}, {"filename": "src/testimonials.py"}])
     assert not files_touch_tests([{"filename": "src/app.py"}, {"filename": "README.md"}])
 
 
