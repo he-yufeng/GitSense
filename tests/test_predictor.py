@@ -48,6 +48,24 @@ def test_files_touch_tests():
     assert not files_touch_tests([{"filename": "src/app.py"}, {"filename": "README.md"}])
 
 
+def test_files_touch_tests_ignores_test_substrings():
+    # regression: substring matching counted these as tests
+    false_friends = [
+        "src/latest_version.py",
+        "docs/contest_rules.md",
+        "inspect_utils.py",
+        "specification.md",
+    ]
+    assert not files_touch_tests([{"filename": f} for f in false_friends])
+
+    assert files_touch_tests([{"filename": "foo/bar_test.go"}])
+    assert files_touch_tests([{"filename": "pkg/__tests__/widget.js"}])
+    assert files_touch_tests([{"filename": "foo/conftest.py"}])
+    assert files_touch_tests([{"filename": "src/FooTest.java"}])
+    assert files_touch_tests([{"filename": "src/TestFoo.java"}])
+    assert files_touch_tests([{"filename": "models/user_spec.rb"}])
+
+
 def _score(**overrides) -> int:
     signals = {
         "review_decision": None,

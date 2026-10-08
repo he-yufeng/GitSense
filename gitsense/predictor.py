@@ -10,6 +10,7 @@ payload and feeds them in.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -125,11 +126,25 @@ def derive_review_decision(reviews: list[dict[str, Any]]) -> str | None:
     return None
 
 
+_TEST_DIR_SEGMENTS = frozenset({"test", "tests", "__tests__", "spec", "specs", "e2e"})
+# basename conventions, matched on the lowercased name
+_TEST_FILE_RE = re.compile(r"^(?:test_.*|conftest\.py|.*(?:_test|_spec|\.test|\.spec)\.[^.]+)$")
+# java test classes are case-significant, so they get their own pass
+_JAVA_TEST_FILE_RE = re.compile(r"^(?:Test[A-Z].*|[A-Z].*Tests?)\.java$")
+
+
 def files_touch_tests(files: list[dict[str, Any]]) -> bool:
-    """True if any changed file looks like a test (path contains 'test' or 'spec')."""
+    """True if any changed file follows a test naming convention.
+
+    Matches path segments and basenames, not substrings: ``latest_version.py``
+    and ``specification.md`` are not tests.
+    """
     for f in files:
-        name = (f.get("filename") or "").lower()
-        if "test" in name or "spec" in name:
+        parts = (f.get("filename") or "").split("/")
+        if any(seg.lower() in _TEST_DIR_SEGMENTS for seg in parts[:-1]):
+            return True
+        base = parts[-1]
+        if _TEST_FILE_RE.match(base.lower()) or _JAVA_TEST_FILE_RE.match(base):
             return True
     return False
 
