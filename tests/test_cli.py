@@ -34,9 +34,7 @@ def _no_llm_env(monkeypatch):
 
 def test_find_rate_limit_prints_reset_and_exits_nonzero(monkeypatch):
     def boom(query, per_page):
-        raise _status_error(
-            403, {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1893456000"}
-        )
+        raise _status_error(403, {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1893456000"})
 
     monkeypatch.setattr("gitsense.finder.search_issues", boom)
     result = CliRunner().invoke(main, ["find", "--skills", "python"])
@@ -87,9 +85,7 @@ def test_scan_bad_repo_is_a_clean_error(monkeypatch):
 
 def test_scan_rate_limit_shows_reset(monkeypatch):
     def boom(query, sort="created", order="desc", per_page=30):
-        raise _status_error(
-            403, {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1893456000"}
-        )
+        raise _status_error(403, {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1893456000"})
 
     monkeypatch.setattr("gitsense.github_client.search_issues", boom)
     result = CliRunner().invoke(main, ["scan", "o/r"])
@@ -190,7 +186,34 @@ def test_find_json_export_to_file(monkeypatch, tmp_path):
     assert result.exit_code == 0
     data = json.loads(out.read_text(encoding="utf-8"))
     assert [d["title"] for d in data] == ["issue 1", "issue 2"]
-    assert data[0]["match_score"] == "-"
+    # --no-llm still scores, just without a model: keyword evidence only
+    assert data[0]["match_score"] == 3
+    assert data[0]["reason"].startswith("matched the search query")
+
+
+def test_find_no_llm_shows_keyword_reasons(monkeypatch):
+    _no_llm_env(monkeypatch)
+    issue = _issue(1)
+    issue["title"] = "python logging regression"
+    monkeypatch.setattr(
+        "gitsense.finder.search_issues",
+        lambda query, per_page: [issue],
+    )
+    result = CliRunner().invoke(main, ["find", "--skills", "python", "--no-llm"])
+    assert result.exit_code == 0
+    assert "title mentions python" in result.output
+
+
+def test_find_without_key_falls_back_to_keyword_ranking(monkeypatch):
+    _no_llm_env(monkeypatch)
+    monkeypatch.setattr(
+        "gitsense.finder.search_issues",
+        lambda query, per_page: [_issue(1)],
+    )
+    result = CliRunner().invoke(main, ["find", "--skills", "python"])
+    assert result.exit_code == 0
+    assert "No LLM key set" in result.output
+    assert "matched the search query" in result.output
 
 
 def test_find_markdown_export_to_file(monkeypatch, tmp_path):
@@ -200,9 +223,7 @@ def test_find_markdown_export_to_file(monkeypatch, tmp_path):
         lambda query, per_page: [_issue(1)],
     )
     out = tmp_path / "results.md"
-    result = CliRunner().invoke(
-        main, ["find", "--skills", "python", "--no-llm", "--out", str(out)]
-    )
+    result = CliRunner().invoke(main, ["find", "--skills", "python", "--no-llm", "--out", str(out)])
     assert result.exit_code == 0
     text = out.read_text(encoding="utf-8")
     assert text.startswith("# GitSense results for: python")
@@ -274,3 +295,61 @@ def test_radar_explain_lays_out_the_scorecard(monkeypatch):
     assert "Median merge time" in explained.output
     assert "3.5d" in explained.output
     assert "+14" in explained.output
+
+
+def test_triage_since_last_quotes_the_new_review(monkeypatch, tmp_path):
+    from gitsense import github_client, triage
+
+    item = {
+        "number": 7,
+        "title": "fix parser",
+        "html_url": "https://github.com/o/r/pull/7",
+        "repository_url": "https://api.github.com/repos/o/r",
+        "draft": False,
+        "created_at": "2026-07-01T00:00:00Z",
+        "updated_at": "2026-08-01T00:00:00Z",
+    }
+    monkeypatch.setattr(
+        "gitsense.github_client.search_issues",
+        lambda query, sort="created", order="desc", per_page=30: [item],
+    )
+
+    state = {"action": "waiting on reviewer"}
+
+    def fake_enrich(items, stale_days=14):
+        return [
+            triage.TriageRow(
+                repo="o/r",
+                number=7,
+                title="fix parser",
+                url="https://github.com/o/r/pull/7",
+                action=state["action"],
+            )
+        ]
+
+    monkeypatch.setattr("gitsense.triage.enrich_rows", fake_enrich)
+    monkeypatch.setattr(
+        github_client,
+        "get_pull_request_reviews",
+        lambda o, r, n: [
+            {
+                "user": {"login": "jane"},
+                "state": "CHANGES_REQUESTED",
+                "body": "please split the migration out",
+                "submitted_at": "2026-10-09T01:00:00Z",
+            }
+        ],
+    )
+
+    args = ["triage", "octocat", "--since-last", "--state-dir", str(tmp_path)]
+    first = CliRunner().invoke(main, args)
+    assert first.exit_code == 0
+    assert "NEW" in first.output
+    assert "please split" not in first.output  # waiting on reviewer: nothing to quote yet
+
+    state["action"] = "address the review"
+    second = CliRunner().invoke(main, args)
+    assert second.exit_code == 0
+    assert "CHANGED" in second.output
+    assert "review @jane (CHANGES_REQUESTED, 2026-10-09):" in second.output
+    assert "please split the" in second.output and "migration out" in second.output

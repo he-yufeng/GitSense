@@ -16,16 +16,37 @@ from gitsense.github_client import describe_http_error, get_issue_comments, sear
 class SearchError(Exception):
     """The GitHub searches failed: nothing to rank, and it is not 'no results'."""
 
+
+def llm_credentials_available(api_key: str | None = None) -> bool:
+    """Mirror of rank_with_llm's key resolution, so the CLI can pick a ranker."""
+    if api_key:
+        return True
+    return bool(os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY"))
+
+
 # comment phrases that read like someone holding the issue, EN and CN.
 # GitHub has no "claimed" state beyond assignment, so people hold issues in
 # comments; treat only recent claims as real, since an old "I'll take this"
 # that went nowhere should not scare anyone off.
 _CLAIM_PHRASES = (
-    "i'll work on this", "i will work on this", "i'd like to work on this",
-    "i wanna work on this", "let me work on this", "i can take this",
-    "i'll take this", "let me take this", "taking this", "working on this",
-    "i'm on it", "assign me", "assign this to me",
-    "我来", "我认领", "认领这个", "我来做", "交给我",
+    "i'll work on this",
+    "i will work on this",
+    "i'd like to work on this",
+    "i wanna work on this",
+    "let me work on this",
+    "i can take this",
+    "i'll take this",
+    "let me take this",
+    "taking this",
+    "working on this",
+    "i'm on it",
+    "assign me",
+    "assign this to me",
+    "我来",
+    "我认领",
+    "认领这个",
+    "我来做",
+    "交给我",
 )
 
 
@@ -141,24 +162,24 @@ def fetch_candidates(
                 owner, repo = repo_name.split("/", 1)
                 try:
                     number = int(url.rstrip("/").rsplit("/", 1)[-1])
-                    claim = detect_claims(
-                        get_issue_comments(owner, repo, number), days=claim_days
-                    )
+                    claim = detect_claims(get_issue_comments(owner, repo, number), days=claim_days)
                 except httpx.HTTPError:
                     # claim check is best-effort; never block a result on it
                     claim = None
 
-            candidates.append({
-                "title": issue.get("title", ""),
-                "url": url,
-                "repo": repo_name,
-                "labels": [lab["name"] for lab in issue.get("labels", [])],
-                "comments": comments,
-                "created_at": issue.get("created_at", "")[:10],
-                "updated_at": issue.get("updated_at", "")[:10],
-                "body": (issue.get("body") or "")[:1000],
-                "claim": claim,
-            })
+            candidates.append(
+                {
+                    "title": issue.get("title", ""),
+                    "url": url,
+                    "repo": repo_name,
+                    "labels": [lab["name"] for lab in issue.get("labels", [])],
+                    "comments": comments,
+                    "created_at": issue.get("created_at", "")[:10],
+                    "updated_at": issue.get("updated_at", "")[:10],
+                    "body": (issue.get("body") or "")[:1000],
+                    "claim": claim,
+                }
+            )
 
     if not candidates and errors:
         raise SearchError(describe_http_error(errors[0], what="GitHub issue search"))
@@ -212,7 +233,7 @@ def rank_with_llm(
         )
 
     prompt = f"""You are an open source contribution advisor. A developer with these skills wants to contribute:
-Skills: {', '.join(skills)}
+Skills: {", ".join(skills)}
 
 Here are {len(issue_summaries)} open GitHub issues. For each, evaluate:
 1. How well it matches the developer's skills (1-10)

@@ -23,10 +23,22 @@ def main():
 
 
 @main.command()
-@click.option("--skills", "-s", default="", help="Your skills, comma-separated (e.g. python,cuda,llm)")
-@click.option("--profile", "profile_user", default="", help="Infer skills from a GitHub username's public repos")
+@click.option(
+    "--skills", "-s", default="", help="Your skills, comma-separated (e.g. python,cuda,llm)"
+)
+@click.option(
+    "--profile",
+    "profile_user",
+    default="",
+    help="Infer skills from a GitHub username's public repos",
+)
 @click.option("--stars", default=100, help="Minimum repo stars (default: 100)")
-@click.option("--labels", "-l", default="", help="Filter by labels, comma-separated (e.g. bug,good first issue)")
+@click.option(
+    "--labels",
+    "-l",
+    default="",
+    help="Filter by labels, comma-separated (e.g. bug,good first issue)",
+)
 @click.option("--model", "-m", default="gpt-4o-mini", help="LLM model for ranking")
 @click.option("--api-key", "-k", envvar="OPENAI_API_KEY", help="LLM API key")
 @click.option("--no-llm", is_flag=True, help="Skip LLM ranking, just show raw results")
@@ -37,7 +49,9 @@ def main():
     show_default=True,
     help="Only show issues updated within this many days",
 )
-@click.option("--max-comments", type=int, help="Skip noisy issues with more than this many comments")
+@click.option(
+    "--max-comments", type=int, help="Skip noisy issues with more than this many comments"
+)
 @click.option("--include-assigned", is_flag=True, help="Include issues that already have assignees")
 @click.option("--include-linked", is_flag=True, help="Include issues that already have linked PRs")
 @click.option(
@@ -57,10 +71,25 @@ def main():
     default=None,
     help="Directory for --watch state (default: ~/.gitsense)",
 )
-def find(skills: str, profile_user: str, stars: int, labels: str, model: str, api_key: str | None,
-         no_llm: bool, limit: int, updated_days: int, max_comments: int | None,
-         include_assigned: bool, include_linked: bool, check_claims: bool, watch: bool,
-         fmt: str, out: str | None, state_dir: str | None):
+def find(
+    skills: str,
+    profile_user: str,
+    stars: int,
+    labels: str,
+    model: str,
+    api_key: str | None,
+    no_llm: bool,
+    limit: int,
+    updated_days: int,
+    max_comments: int | None,
+    include_assigned: bool,
+    include_linked: bool,
+    check_claims: bool,
+    watch: bool,
+    fmt: str,
+    out: str | None,
+    state_dir: str | None,
+):
     """Find open issues that match your skills.
 
     \b
@@ -72,7 +101,13 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
         gitsense find --skills python,llm --updated-days 30 --max-comments 10
         gitsense find --skills python,llm --format json --out results.json
     """
-    from gitsense.finder import SearchError, fetch_candidates, rank_with_llm
+    from gitsense.finder import (
+        SearchError,
+        fetch_candidates,
+        llm_credentials_available,
+        rank_with_llm,
+    )
+    from gitsense.matcher import rank_locally
 
     skill_list = [s.strip() for s in skills.split(",") if s.strip()]
     if profile_user:
@@ -127,11 +162,13 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
         )
 
     if no_llm:
-        ranked = candidates[:limit]
-        for c in ranked:
-            c["match_score"] = "-"
-            c["reason"] = ""
-            c["approach"] = ""
+        ranked = rank_locally(candidates, skill_list, limit=limit)
+    elif not llm_credentials_available(api_key):
+        ranked = rank_locally(candidates, skill_list, limit=limit)
+        console.print(
+            "[dim]No LLM key set; ranked by keyword match. "
+            "Set OPENAI_API_KEY for LLM ranking.[/dim]"
+        )
     else:
         with console.status(f"[bold blue]Ranking with {model}..."):
             ranked = rank_with_llm(
@@ -142,7 +179,13 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
         from gitsense.watch import default_watch_path, diff_watch, load_watch, query_key, save_watch
 
         key = query_key(
-            skill_list, stars, label_list, updated_days, include_assigned, include_linked, max_comments
+            skill_list,
+            stars,
+            label_list,
+            updated_days,
+            include_assigned,
+            include_linked,
+            max_comments,
         )
         path = default_watch_path(state_dir)
         state = load_watch(path)
@@ -183,21 +226,27 @@ def find(skills: str, profile_user: str, stars: int, labels: str, model: str, ap
 
 def _print_results(results: list[dict], skills: list[str]) -> None:
     console.print()
-    console.print(Panel(
-        f"[bold]Skills:[/bold] {', '.join(skills)}\n"
-        f"[bold]Results:[/bold] {len(results)} issues ranked by match",
-        title="[bold cyan]GitSense Results[/bold cyan]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"[bold]Skills:[/bold] {', '.join(skills)}\n"
+            f"[bold]Results:[/bold] {len(results)} issues ranked by match",
+            title="[bold cyan]GitSense Results[/bold cyan]",
+            border_style="cyan",
+        )
+    )
 
     for i, r in enumerate(results, 1):
         score = r.get("match_score", "-")
-        score_color = "green" if isinstance(score, int) and score >= 7 else (
-            "yellow" if isinstance(score, int) and score >= 4 else "red"
+        score_color = (
+            "green"
+            if isinstance(score, int) and score >= 7
+            else ("yellow" if isinstance(score, int) and score >= 4 else "red")
         )
 
-        console.print(f"\n  [{score_color}][bold]{i}. [{score}/10][/bold][/{score_color}] "
-                       f"[bold]{r['repo']}[/bold]")
+        console.print(
+            f"\n  [{score_color}][bold]{i}. [{score}/10][/bold][/{score_color}] "
+            f"[bold]{r['repo']}[/bold]"
+        )
         console.print(f"     {r['title']}")
         console.print(f"     [dim]{r['url']}[/dim]")
         if r.get("labels"):
@@ -222,7 +271,9 @@ def _print_results(results: list[dict], skills: list[str]) -> None:
     show_default=True,
     help="Only show issues updated within this many days",
 )
-@click.option("--max-comments", type=int, help="Skip noisy issues with more than this many comments")
+@click.option(
+    "--max-comments", type=int, help="Skip noisy issues with more than this many comments"
+)
 def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
     """Scan a specific repo for contribution opportunities.
 
@@ -277,14 +328,20 @@ def scan(repo: str, skills: str, updated_days: int, max_comments: int | None):
 
 @main.command()
 @click.argument("repos", nargs=-1)
-@click.option("--targets", type=click.Path(exists=True, dir_okay=False), help="File with one owner/repo per line")
+@click.option(
+    "--targets",
+    type=click.Path(exists=True, dir_okay=False),
+    help="File with one owner/repo per line",
+)
 @click.option("--days", default=90, show_default=True, help="Recent PR window to inspect")
 @click.option("--stale-days", default=14, show_default=True, help="Open PR age counted as stale")
 @click.option("--skills", "-s", default="", help="Your skills, comma-separated, for fit signals")
 @click.option("--sample", default=20, show_default=True, help="Merged PR sample size per repo")
 @click.option("--format", "fmt", type=click.Choice(["md", "json", "html"]), default="md")
 @click.option("--out", type=click.Path(dir_okay=False), help="Write a report file")
-@click.option("--explain", is_flag=True, help="Show why each repo got its score, one signal per line")
+@click.option(
+    "--explain", is_flag=True, help="Show why each repo got its score, one signal per line"
+)
 def radar(
     repos: tuple[str, ...],
     targets: str | None,
@@ -404,7 +461,9 @@ def _print_radar_results(reports, explain: bool = False) -> None:
                     console.print(f"  [dim]•[/dim] {note}")
             if report.risk_flags:
                 console.print(f"  [yellow]flags:[/yellow] {', '.join(report.risk_flags)}")
-    console.print("\n[dim]Signals use public GitHub PR history. Treat this as a triage pass, not a guarantee.[/dim]")
+    console.print(
+        "\n[dim]Signals use public GitHub PR history. Treat this as a triage pass, not a guarantee.[/dim]"
+    )
 
 
 def _fmt_days(value: float | None) -> str:
@@ -413,6 +472,33 @@ def _fmt_days(value: float | None) -> str:
     if value < 1:
         return "<1d"
     return f"{value:.1f}d"
+
+
+_MAX_REVIEW_FETCHES = 8
+
+
+def _maybe_print_review_highlight(repo: str, number: int, action: str, fetched: int) -> int:
+    """Under a delta entry that now needs review work, quote the latest review.
+
+    Only fires when the action is "address the review": that is the transition
+    a new CHANGES_REQUESTED produces, so those are the reviews you have not
+    seen. Capped so a busy week cannot turn the digest into an API storm.
+    """
+    if action != "address the review" or fetched >= _MAX_REVIEW_FETCHES:
+        return fetched
+    from gitsense.triage import latest_review_highlight
+
+    owner, _, name = repo.partition("/")
+    try:
+        highlight = latest_review_highlight(owner, name, number)
+    except httpx.HTTPError:
+        return fetched + 1
+    if highlight:
+        console.print(
+            f"         [dim]review @{highlight['user']} "
+            f"({highlight['state']}, {highlight['date']}):[/dim] {highlight['excerpt']}"
+        )
+    return fetched + 1
 
 
 @main.command()
@@ -473,17 +559,28 @@ def predict(pr_ref: str):
 @main.command()
 @click.argument("username")
 @click.option("--limit", "-n", default=30, show_default=True, help="Max open PRs to triage")
-@click.option("--stale-days", default=14, show_default=True, help="Days without review before pinging")
+@click.option(
+    "--stale-days", default=14, show_default=True, help="Days without review before pinging"
+)
 @click.option("--shallow", is_flag=True, help="Skip per-PR API calls (fast, no scores)")
-@click.option("--since-last", is_flag=True, help="Show only what changed since the last triage snapshot")
+@click.option(
+    "--since-last", is_flag=True, help="Show only what changed since the last triage snapshot"
+)
 @click.option("--format", "fmt", type=click.Choice(["table", "json"]), default="table")
 @click.option(
     "--state-dir",
     default=None,
     help="Directory for --since-last snapshots (default: ~/.gitsense)",
 )
-def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last: bool, fmt: str,
-           state_dir: str | None):
+def triage(
+    username: str,
+    limit: int,
+    stale_days: int,
+    shallow: bool,
+    since_last: bool,
+    fmt: str,
+    state_dir: str | None,
+):
     """Triage every open PR you've authored, worst-first.
 
     \b
@@ -529,9 +626,7 @@ def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last
             try:
                 rows = enrich_rows(items, stale_days=stale_days)
             except httpx.HTTPError as exc:
-                raise click.ClickException(
-                    describe_http_error(exc, what="Enriching PRs")
-                ) from exc
+                raise click.ClickException(describe_http_error(exc, what="Enriching PRs")) from exc
     rows = sort_rows(rows)
 
     if since_last:
@@ -542,17 +637,30 @@ def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last
             console.print_json(json.dumps(delta))
             return
         unchanged = len(rows) - len(delta["new"]) - len(delta["changed"])
-        console.print(f"[bold]Triage delta:[/bold] {len(delta['new'])} new, "
-                      f"{len(delta['changed'])} changed, {len(delta['gone'])} gone, {unchanged} unchanged")
+        console.print(
+            f"[bold]Triage delta:[/bold] {len(delta['new'])} new, "
+            f"{len(delta['changed'])} changed, {len(delta['gone'])} gone, {unchanged} unchanged"
+        )
+        fetches = 0
         for entry in delta["new"]:
-            console.print(f"  [green]NEW[/green]     {entry['repo']}#{entry['number']} — {entry['action']}")
+            console.print(
+                f"  [green]NEW[/green]     {entry['repo']}#{entry['number']} — {entry['action']}"
+            )
+            fetches = _maybe_print_review_highlight(
+                entry["repo"], entry["number"], entry["action"], fetches
+            )
         for entry in delta["changed"]:
             console.print(
                 f"  [yellow]CHANGED[/yellow] {entry['repo']}#{entry['number']} — "
                 f"{entry['was']} → {entry['now']}"
             )
+            fetches = _maybe_print_review_highlight(
+                entry["repo"], entry["number"], entry["now"], fetches
+            )
         for entry in delta["gone"]:
-            console.print(f"  [dim]GONE     {entry['repo']}#{entry['number']} — was: {entry['was']}[/dim]")
+            console.print(
+                f"  [dim]GONE     {entry['repo']}#{entry['number']} — was: {entry['was']}[/dim]"
+            )
         return
 
     if fmt == "json":
@@ -568,8 +676,12 @@ def triage(username: str, limit: int, stale_days: int, shallow: bool, since_last
     t.add_column("Title", max_width=44)
 
     for r in rows:
-        score_color = "green" if (r.score or 0) >= 70 else "yellow" if (r.score or 0) >= 45 else "red"
-        score_text = f"[{score_color}]{r.score}[/{score_color}]" if r.score is not None else "[dim]-[/dim]"
+        score_color = (
+            "green" if (r.score or 0) >= 70 else "yellow" if (r.score or 0) >= 45 else "red"
+        )
+        score_text = (
+            f"[{score_color}]{r.score}[/{score_color}]" if r.score is not None else "[dim]-[/dim]"
+        )
         action = r.action
         if action in ("fix CI", "address the review", "rebase to clear conflicts"):
             action = f"[red]{action}[/red]"
@@ -615,10 +727,12 @@ def profile(username: str):
     body = (
         f"[bold]Inferred from {result['repo_count']} repos[/bold]"
         + (f" (skipped {result['skipped_forks']} forks)" if result["skipped_forks"] else "")
-        + "\n\n" + "\n".join(lines)
+        + "\n\n"
+        + "\n".join(lines)
         + "\n\n[dim]Weights = 1 + log10(stars+1), capped at 1000 stars. "
         "Forks and repos without a primary language are skipped.[/dim]"
     )
-    console.print(Panel(body, title=f"[bold cyan]Skill profile: @{username}[/bold cyan]",
-                        border_style="cyan"))
+    console.print(
+        Panel(body, title=f"[bold cyan]Skill profile: @{username}[/bold cyan]", border_style="cyan")
+    )
     console.print(f"\n[dim]Use it directly: gitsense find --profile {username}[/dim]")

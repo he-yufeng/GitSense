@@ -273,10 +273,7 @@ def _row_from_graphql_node(
     decision = (node.get("reviewDecision") or "").upper()
     if decision in {"", "REVIEW_REQUIRED"}:
         decision = None
-    files = [
-        {"filename": f.get("path", "")}
-        for f in (node.get("files") or {}).get("nodes") or []
-    ]
+    files = [{"filename": f.get("path", "")} for f in (node.get("files") or {}).get("nodes") or []]
     pr = {
         "draft": bool(node.get("isDraft")),
         "additions": node.get("additions") or 0,
@@ -433,3 +430,30 @@ def diff_snapshots(
         if key not in new_by_key
     ]
     return {"new": added, "changed": changed, "gone": gone}
+
+
+def latest_review_highlight(owner: str, repo: str, number: int) -> dict[str, Any] | None:
+    """The newest review worth reading on a PR, as a one-line digest.
+
+    ``--since-last`` tells you an action flipped to "address the review"; this
+    puts the actual words under it. Prefers the latest CHANGES_REQUESTED review
+    that came with a body; falls back to the latest review with any body, so a
+    plain comment review still surfaces. Reviews arrive oldest-first.
+    """
+    from gitsense import github_client
+
+    reviews = github_client.get_pull_request_reviews(owner, repo, number)
+    with_body = [r for r in reviews if (r.get("body") or "").strip()]
+    if not with_body:
+        return None
+    chosen = with_body[-1]
+    for review in reversed(with_body):
+        if (review.get("state") or "").upper() == "CHANGES_REQUESTED":
+            chosen = review
+            break
+    return {
+        "user": (chosen.get("user") or {}).get("login", "?"),
+        "state": (chosen.get("state") or "").upper(),
+        "date": (chosen.get("submitted_at") or "")[:10],
+        "excerpt": " ".join(chosen["body"].split())[:160],
+    }

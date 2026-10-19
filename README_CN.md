@@ -89,7 +89,7 @@ $ gitsense find --skills python,llm,cuda --stars 1000
 ```bash
 # 全站找 issue，按技能匹配度排序
 gitsense find --skills python,fastapi --stars 5000 --labels bug
-gitsense find --skills python --no-llm                              # 跳过 LLM 排序（更快）
+gitsense find --skills python --no-llm                              # 按关键词匹配排序，无需 key
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 gitsense find --skills python,llm --format json --out results.json  # 像 radar/triage 一样导出结果
 gitsense find --skills python,llm --format html --out digest.html   # 邮件友好报告（内联样式）
@@ -113,7 +113,7 @@ gitsense predict vllm-project/vllm#12345
 # 盘点你在全站的所有 open PR，最该处理的排最前，每条给出下一步动作
 gitsense triage octocat
 gitsense triage octocat --shallow            # 只调一次搜索 API，不逐条查详情
-gitsense triage octocat --since-last         # 只看和上次盘点相比变了什么
+gitsense triage octocat --since-last         # 只看和上次盘点相比变了什么，新评审摘要一并给出
 ```
 
 `radar` 看近期合入速度、维护者响应时间、stale PR 比例、open-to-merged 压力和外部友好度；`predict` 按某个 PR 的 review 意见、draft/冲突/CI 状态、diff 大小、是否带测试和存活时长打分；`triage` 把同一套打分套到你所有 open PR 上，每条收敛成一个下一步动作（回 review、修 CI、rebase、催合），详情信号用一次批量 GraphQL 查询拿全，不再每个 PR 调四次 REST，GraphQL 失败会自动回退到 REST。都是快速筛查用的启发式，不是保证。
@@ -159,7 +159,7 @@ export OPENAI_API_KEY=ollama
 LLM 擅长从 issue 描述里判断关键词匹配和复杂度。它不能告诉你维护者会不会 merge 你的 PR，也不了解代码库结构。当作智能排序用，不是万能预言机。
 
 **要花钱吗？**
-GitHub 搜索免费（无 token 有限流）。LLM 排序看你用什么模型，gpt-4o-mini 大概每次搜索 $0.001-0.01。用 `--no-llm` 可以完全跳过排序。
+GitHub 搜索免费（无 token 有限流）。LLM 排序看你用什么模型，gpt-4o-mini 大概每次搜索 $0.001-0.01。`--no-llm`（或没配 key）会改走免费的确定性排序：按词边界把技能词与标题/标签/正文匹配，叠加新人标签、新鲜度、认领状态、讨论噪声等信号，每条结果都写明依据。
 
 ## 路线图
 

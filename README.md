@@ -93,7 +93,7 @@ Ranking with gpt-4o-mini...
 ```bash
 # Find issues across GitHub, ranked by skill match
 gitsense find --skills python,fastapi --stars 5000 --labels bug
-gitsense find --skills python --no-llm                              # skip LLM ranking (faster)
+gitsense find --skills python --no-llm                              # rank by keyword match, no key needed
 gitsense find --skills python --watch                             # digest of what's new since your last watch
 gitsense find --skills python --model anthropic/claude-sonnet-4 --limit 15
 gitsense find --skills python,llm --format json --out results.json  # export like radar/triage
@@ -118,7 +118,7 @@ gitsense predict vllm-project/vllm#12345
 # Triage every open PR you've authored, worst-first (one next action each)
 gitsense triage octocat
 gitsense triage octocat --shallow            # one search call, no per-PR lookups
-gitsense triage octocat --since-last         # only what changed since your last run
+gitsense triage octocat --since-last         # only what changed since your last run, with the newest review quoted
 ```
 
 `radar` weighs recent merge velocity, maintainer response time, stale-PR ratio, open-to-merged pressure, and outsider-friendliness; `predict` scores one PR from its review decision, draft/conflict/CI status, diff size, tests, and age. `triage` reuses the same scoring across all your open PRs and collapses each into a next action (address the review, fix CI, rebase, ping), fetching the per-PR signals in one batched GraphQL query instead of four REST calls per PR, with an automatic REST fallback. All are triage heuristics, not guarantees.
@@ -164,7 +164,7 @@ No. GitSense is a first-pass filter that saves you the time of scrolling through
 The LLM is good at matching keywords and assessing complexity from issue descriptions. It can't tell you whether the maintainers will actually merge your PR or how the codebase is structured. Think of it as a smart sort, not an oracle.
 
 **Does this cost money?**
-GitHub search is free (rate-limited without a token). LLM ranking costs whatever your provider charges per call — typically $0.001-0.01 per search with gpt-4o-mini. Use `--no-llm` to skip ranking entirely.
+GitHub search is free (rate-limited without a token). LLM ranking costs whatever your provider charges per call — typically $0.001-0.01 per search with gpt-4o-mini. `--no-llm` (or simply having no key) switches to the free deterministic ranking: word-boundary keyword match against title/labels/body, folded with newcomer-label, freshness, claim-status and thread-noise signals, with the evidence spelled out per result.
 
 ## Roadmap
 

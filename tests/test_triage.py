@@ -101,10 +101,15 @@ def test_build_row_enriched_changes_requested():
 
 
 def test_sort_rows_worst_first_unscored_last():
-    good = build_row(_search_item(number=1), pr=_pr_payload(), review_decision="APPROVED",
-                     touches_tests=True)
-    bad = build_row(_search_item(number=2), pr=_pr_payload(), review_decision="CHANGES_REQUESTED",
-                    ci_failing=True)
+    good = build_row(
+        _search_item(number=1), pr=_pr_payload(), review_decision="APPROVED", touches_tests=True
+    )
+    bad = build_row(
+        _search_item(number=2),
+        pr=_pr_payload(),
+        review_decision="CHANGES_REQUESTED",
+        ci_failing=True,
+    )
     shallow = build_row(_search_item(number=3))
     rows = sort_rows([good, shallow, bad])
     assert [r.number for r in rows] == [2, 1, 3]
@@ -153,3 +158,73 @@ def test_load_snapshot_missing_or_corrupt(tmp_path):
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")
     assert load_snapshot(str(bad)) == []
+
+
+def _review(user, state, body, submitted="2026-10-08T10:00:00Z"):
+    return {
+        "user": {"login": user},
+        "state": state,
+        "body": body,
+        "submitted_at": submitted,
+    }
+
+
+def test_latest_review_highlight_prefers_newest_changes_requested(monkeypatch):
+    from gitsense import github_client
+    from gitsense.triage import latest_review_highlight
+
+    monkeypatch.setattr(
+        github_client,
+        "get_pull_request_reviews",
+        lambda o, r, n: [
+            _review("alice", "CHANGES_REQUESTED", "first round: split the migration"),
+            _review("bob", "COMMENTED", "drive-by thought"),
+            _review("alice", "CHANGES_REQUESTED", "second round: still need the guard"),
+        ],
+    )
+    h = latest_review_highlight("o", "r", 42)
+    assert h["user"] == "alice"
+    assert h["state"] == "CHANGES_REQUESTED"
+    assert h["excerpt"].startswith("second round")
+    assert h["date"] == "2026-10-08"
+
+
+def test_latest_review_highlight_falls_back_to_latest_with_body(monkeypatch):
+    from gitsense import github_client
+    from gitsense.triage import latest_review_highlight
+
+    monkeypatch.setattr(
+        github_client,
+        "get_pull_request_reviews",
+        lambda o, r, n: [
+            _review("alice", "APPROVED", ""),
+            _review("bob", "COMMENTED", "looks fine, one nit below"),
+        ],
+    )
+    h = latest_review_highlight("o", "r", 42)
+    assert h["user"] == "bob"
+    assert h["state"] == "COMMENTED"
+
+
+def test_latest_review_highlight_none_when_all_bodies_empty(monkeypatch):
+    from gitsense import github_client
+    from gitsense.triage import latest_review_highlight
+
+    monkeypatch.setattr(
+        github_client,
+        "get_pull_request_reviews",
+        lambda o, r, n: [_review("alice", "APPROVED", "  ")],
+    )
+    assert latest_review_highlight("o", "r", 42) is None
+
+
+def test_review_highlight_collapses_whitespace(monkeypatch):
+    from gitsense import github_client
+    from gitsense.triage import latest_review_highlight
+
+    monkeypatch.setattr(
+        github_client,
+        "get_pull_request_reviews",
+        lambda o, r, n: [_review("alice", "CHANGES_REQUESTED", "line one\n\nline   two\t end")],
+    )
+    assert latest_review_highlight("o", "r", 42)["excerpt"] == "line one line two end"
