@@ -4,16 +4,16 @@ from gitsense.radar import ScoreFactor, scorecard_repo
 
 
 def _factors(**over) -> dict[str, ScoreFactor]:
-    base = dict(
-        merged_prs=20,
-        open_prs=10,
-        stale_ratio=0.1,
-        median_merge_days=5.0,
-        median_maintainer_response_days=2.0,
-        external_merged_ratio=0.5,
-        skill_matches=[],
-        stars=5000,
-    )
+    base = {
+        "merged_prs": 20,
+        "open_prs": 10,
+        "stale_ratio": 0.1,
+        "median_merge_days": 5.0,
+        "median_maintainer_response_days": 2.0,
+        "external_merged_ratio": 0.5,
+        "skill_matches": [],
+        "stars": 5000,
+    }
     base.update(over)
     _score, factors = scorecard_repo(**base)
     return {f.key: f for f in factors}
