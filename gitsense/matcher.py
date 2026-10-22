@@ -111,6 +111,63 @@ def score_match(candidate: dict[str, Any], skills: list[str]) -> tuple[int, list
     return max(1, min(10, score)), reasons
 
 
+# An issue untouched for this long is usually hard, abandoned, or both.
+_STALE_DAYS = 365
+_OLD_DAYS = 180
+
+
+def estimate_difficulty(candidate: dict[str, Any], skills: list[str]) -> tuple[int, list[str]]:
+    """Estimate the effort to *close* an issue, 1-10, with the evidence.
+
+    This is deliberately separate from :func:`score_match`: "fits your skills"
+    and "will take a while" are different axes, and the calibration loop
+    (``gitsense calibrate``) checks this estimate against how long your own
+    closed issues actually took. Signals: newcomer labels and skill overlap
+    pull down; noisy threads, staleness and existing claims push up.
+    """
+    title = (candidate.get("title") or "").lower()
+    labels = [str(lab).lower() for lab in candidate.get("labels") or []]
+
+    score = 5
+    reasons: list[str] = []
+
+    newcomer = next((lab for lab in labels if lab in _NEWCOMER_LABELS), None)
+    if newcomer:
+        score -= 2
+        reasons.append(f"labeled '{newcomer}' for newcomers")
+
+    title_hits = [s for s in skills if _word_hit(s, title)]
+    if title_hits:
+        score -= min(2, len(title_hits))
+        reasons.append("in your skill area: " + ", ".join(title_hits))
+
+    comments = int(candidate.get("comments") or 0)
+    if comments > 50:
+        score += 2
+        reasons.append(f"very long thread ({comments} comments)")
+    elif comments > 20:
+        score += 1
+        reasons.append(f"long thread ({comments} comments)")
+
+    created = candidate.get("created_at") or candidate.get("updated_at") or ""
+    days = _days_since(created)
+    if days is not None and days > _STALE_DAYS:
+        score += 2
+        reasons.append(f"open for over a year ({int(days)}d)")
+    elif days is not None and days > _OLD_DAYS:
+        score += 1
+        reasons.append(f"open for {int(days)}d")
+
+    if candidate.get("claim") or candidate.get("linked_pr"):
+        score += 1
+        reasons.append("someone may already be on it")
+
+    if not reasons:
+        reasons.append("no strong effort signals; assuming a typical issue")
+
+    return max(1, min(10, score)), reasons
+
+
 def rank_locally(
     candidates: list[dict[str, Any]], skills: list[str], limit: int = 8
 ) -> list[dict[str, Any]]:

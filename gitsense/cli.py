@@ -207,7 +207,7 @@ def find(
     if fmt == "json" and not out:
         console.print_json(json.dumps(ranked))
     else:
-        _print_results(ranked, skill_list)
+        _print_results(ranked, skill_list, state_dir)
 
     if out:
         from pathlib import Path
@@ -224,7 +224,12 @@ def find(
         console.print(f"\n[green]Wrote report:[/green] {out}")
 
 
-def _print_results(results: list[dict], skills: list[str]) -> None:
+def _print_results(results: list[dict], skills: list[str], state_dir: str | None = None) -> None:
+    from gitsense.calibrate import effort_note, load_report
+    from gitsense.matcher import estimate_difficulty
+
+    calibration = load_report(state_dir)
+
     console.print()
     console.print(
         Panel(
@@ -258,8 +263,65 @@ def _print_results(results: list[dict], skills: list[str]) -> None:
             )
         if r.get("reason"):
             console.print(f"     [italic]{r['reason']}[/italic]")
+        difficulty, _ = estimate_difficulty(r, skills)
+        note = effort_note(difficulty, calibration)
+        console.print(f"     [dim]{note}[/dim]")
         if r.get("approach"):
             console.print(f"     [bold]How to start:[/bold] {r['approach']}")
+
+
+@main.command()
+@click.argument("username")
+@click.option("--skills", "-s", default="", help="Your skills, comma-separated (same meaning as find)")
+@click.option(
+    "--limit", "-n", default=50, show_default=True, help="How many closed issues to sample"
+)
+@click.option("--state-dir", default=None, help="State directory (default: ~/.gitsense)")
+def calibrate(username: str, skills: str, limit: int, state_dir: str | None):
+    """Calibrate difficulty estimates against issues you actually closed.
+
+    Pulls the issues assigned to USERNAME that are now closed, pairs each with
+    the difficulty it would have been estimated at, and reports how long each
+    bucket really took you. Saved to the state dir so `find` annotates future
+    results with what easy/medium/hard meant in days for you.
+
+    \b
+    Example:
+        gitsense calibrate octocat --skills python,llm
+    """
+    from gitsense.calibrate import build_report, fetch_closed_issues, save_report
+
+    skill_list = [s.strip().lower() for s in skills.split(",") if s.strip()]
+
+    with console.status(f"[bold blue]Fetching @{username}'s closed issues..."):
+        try:
+            items = fetch_closed_issues(username, per_page=limit)
+        except httpx.HTTPStatusError as exc:
+            raise click.ClickException(f"GitHub API error: {exc}") from exc
+
+    if not items:
+        console.print(
+            f"[dim]No closed issues assigned to @{username} found. "
+            "Assign yourself to the issues you work on to make calibration possible.[/dim]"
+        )
+        return
+
+    report = build_report(username, items, skill_list)
+    path = save_report(report, state_dir)
+
+    table = Table(title=f"Difficulty calibration for @{username}")
+    table.add_column("Bucket")
+    table.add_column("Closes", justify="right")
+    table.add_column("Median days to close", justify="right")
+    for bucket in report.buckets:
+        table.add_row(
+            bucket.name,
+            str(bucket.count),
+            f"{bucket.median_days:g}d" if bucket.median_days is not None else "-",
+        )
+    console.print(table)
+    console.print(f"[italic]{report.verdict}[/italic]")
+    console.print(f"[dim]Saved to {path}; `gitsense find` annotates results from it.[/dim]")
 
 
 @main.command()
