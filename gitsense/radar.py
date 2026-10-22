@@ -17,6 +17,8 @@ from gitsense.github_client import (
     get_pull_request_reviews,
     get_repo_info,
     get_repo_languages,
+    list_releases,
+    list_workflow_runs,
     search_issue_count,
     search_issues,
 )
@@ -60,6 +62,8 @@ class RepoRadarReport:
     notes: list[str] = field(default_factory=list)
     risk_flags: list[str] = field(default_factory=list)
     factors: list[ScoreFactor] = field(default_factory=list)
+    ci_success_rate: float | None = None
+    releases_last_year: int | None = None
 
 
 def parse_repo_name(repo: str) -> tuple[str, str]:
@@ -132,6 +136,9 @@ def analyze_repo(
     stale_ratio = (stale_count / open_count) if open_count else 0.0
     open_to_merged_ratio = (open_count / merged_count) if merged_count else None
 
+    ci_success_rate, ci_runs_seen = _ci_health(owner, name, repo_info.get("default_branch"))
+    releases_last_year, latest_release_days = _release_cadence(owner, name)
+
     score, factors = scorecard_repo(
         merged_prs=merged_count,
         open_prs=open_count,
@@ -141,6 +148,10 @@ def analyze_repo(
         external_merged_ratio=external_ratio,
         skill_matches=skill_matches,
         stars=int(repo_info.get("stargazers_count") or 0),
+        ci_success_rate=ci_success_rate,
+        ci_runs_seen=ci_runs_seen,
+        releases_last_year=releases_last_year,
+        latest_release_days=latest_release_days,
     )
     risk_flags = risk_flags_for_repo(
         merged_prs=merged_count,
@@ -169,6 +180,8 @@ def analyze_repo(
         notes=[factor.reason for factor in factors if factor.reason],
         risk_flags=risk_flags,
         factors=factors,
+        ci_success_rate=ci_success_rate,
+        releases_last_year=releases_last_year,
     )
 
 
@@ -182,6 +195,10 @@ def scorecard_repo(
     external_merged_ratio: float | None,
     skill_matches: list[str],
     stars: int,
+    ci_success_rate: float | None = None,
+    ci_runs_seen: int = 0,
+    releases_last_year: int | None = None,
+    latest_release_days: float | None = None,
 ) -> tuple[int, list[ScoreFactor]]:
     """Score a repo and lay the card face up: every factor with its number."""
     factors: list[ScoreFactor] = []
@@ -271,6 +288,44 @@ def scorecard_repo(
         factors.append(ScoreFactor("stars", "Stars", stars_value, 3))
     else:
         factors.append(ScoreFactor("stars", "Stars", stars_value, 0))
+
+    if ci_success_rate is None:
+        factors.append(ScoreFactor("ci_health", "CI health", "no completed CI runs visible", 0))
+    else:
+        ci_value = f"{ci_success_rate:.0%} green of {ci_runs_seen} runs"
+        if ci_success_rate >= 0.9:
+            factors.append(ScoreFactor("ci_health", "CI health", ci_value, 8, "CI is reliably green"))
+        elif ci_success_rate < 0.5:
+            factors.append(
+                ScoreFactor(
+                    "ci_health",
+                    "CI health",
+                    ci_value,
+                    -10,
+                    "CI fails often; a PR can go red for reasons that are not yours",
+                )
+            )
+        else:
+            factors.append(ScoreFactor("ci_health", "CI health", ci_value, 0))
+
+    if releases_last_year is None:
+        factors.append(ScoreFactor("release_cadence", "Release cadence", "no releases recorded", 0))
+    else:
+        release_value = f"{releases_last_year} in the last year"
+        if releases_last_year >= 4:
+            factors.append(ScoreFactor("release_cadence", "Release cadence", release_value, 6, "ships releases regularly"))
+        elif releases_last_year == 0 and (latest_release_days or 0) > 365:
+            factors.append(
+                ScoreFactor(
+                    "release_cadence",
+                    "Release cadence",
+                    f"last release {int(latest_release_days or 0)}d ago",
+                    -6,
+                    "releases went quiet over a year ago",
+                )
+            )
+        else:
+            factors.append(ScoreFactor("release_cadence", "Release cadence", release_value, 0))
 
     score = 50 + sum(factor.delta for factor in factors)
     return max(0, min(100, score)), factors
@@ -456,6 +511,54 @@ def render_html(reports: list[RepoRadarReport]) -> str:
 
 def render_json(reports: list[RepoRadarReport]) -> str:
     return json.dumps([asdict(report) for report in reports], indent=2, ensure_ascii=False) + "\n"
+
+
+def _ci_health(owner: str, repo: str, default_branch: str | None) -> tuple[float | None, int]:
+    """Success fraction of the repo's recent completed workflow runs.
+
+    Returns (rate, runs_seen); rate is None when the Actions API is
+    unavailable or nothing completed yet, so the scorecard can say so
+    instead of guessing.
+    """
+    import httpx
+
+    try:
+        runs = list_workflow_runs(owner, repo, branch=default_branch, per_page=10)
+    except httpx.HTTPError:
+        return None, 0
+    completed = [r for r in runs if r.get("status") == "completed"]
+    if not completed:
+        return None, 0
+    green = sum(1 for r in completed if r.get("conclusion") == "success")
+    return green / len(completed), len(completed)
+
+
+def _release_cadence(owner: str, repo: str) -> tuple[int | None, float | None]:
+    """(releases in the last 365d, age of the newest release in days).
+
+    (None, None) when the repo has no releases at all or the API fails —
+    plenty of healthy repos ship rolling releases, so absence is reported,
+    not scored.
+    """
+    import httpx
+
+    try:
+        releases = list_releases(owner, repo)
+    except httpx.HTTPError:
+        return None, None
+    if not releases:
+        return None, None
+    now = datetime.now(timezone.utc)
+    ages: list[float] = []
+    for release in releases:
+        published = release.get("published_at")
+        if not published:
+            continue
+        ages.append((now - _parse_github_time(published)).total_seconds() / 86400)
+    if not ages:
+        return None, None
+    last_year = sum(1 for age in ages if age <= 365)
+    return last_year, min(ages)
 
 
 def _sample_maintainer_response_days(

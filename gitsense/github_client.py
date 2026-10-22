@@ -117,6 +117,35 @@ def get_repo_languages(owner: str, repo: str) -> dict[str, int]:
     return resp.json()
 
 
+def list_workflow_runs(
+    owner: str, repo: str, branch: str | None = None, per_page: int = 10
+) -> list[dict[str, Any]]:
+    """Recent workflow runs for a repo, optionally restricted to one branch."""
+    params: dict[str, Any] = {"per_page": per_page}
+    if branch:
+        params["branch"] = branch
+    resp = httpx.get(
+        f"{GITHUB_API}/repos/{owner}/{repo}/actions/runs",
+        params=params,
+        headers=_get_headers(),
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json().get("workflow_runs", [])
+
+
+def list_releases(owner: str, repo: str, per_page: int = 50) -> list[dict[str, Any]]:
+    """Published releases for a repo, newest first."""
+    resp = httpx.get(
+        f"{GITHUB_API}/repos/{owner}/{repo}/releases",
+        params={"per_page": per_page},
+        headers=_get_headers(),
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
 def get_pull_request(owner: str, repo: str, number: int) -> dict[str, Any]:
     """Get a single pull request (draft, additions, changed_files, mergeable_state, ...)."""
     resp = httpx.get(
