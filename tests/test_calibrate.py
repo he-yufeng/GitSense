@@ -3,8 +3,8 @@
 from datetime import datetime, timedelta, timezone
 
 from gitsense.calibrate import (
-    build_report,
     bucket_name,
+    build_report,
     effort_note,
     load_report,
     save_report,
